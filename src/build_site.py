@@ -115,6 +115,33 @@ def main():
             "history": [h for h in k.get("history", []) if h.get("insight")],
         })
 
+    # 应世 (现实/苦) — 从世界真实的苦里抽, 按场景归类
+    # 第三轴: 法如何接住痛。此刻多是"听见了, 还答不了" —— 这种诚实正是应世该显示的
+    import csv as _csv
+    yingshi = []
+    SRC = ROOT / "data" / "sources"
+    cries = {}
+    for f in sorted(SRC.glob("week_questions_*.txt")):
+        with open(f, encoding="utf-8") as fh:
+            for row in _csv.reader(fh):
+                if len(row) < 2 or row[1].strip().strip('"') in ("app", ""):
+                    continue
+                cat = row[1].strip().strip('"').strip()
+                cries.setdefault(cat, []).append(row[0].strip().strip('"').strip())
+    # 此刻这颗心唯一在参的法(空/k001), 本就是为了学会面对这些痛 —— 唯一诚实的关联
+    engaged = [k["id"] for k in koans]  # 都源于"41声苦"
+    for cat, texts in sorted(cries.items(), key=lambda x: -len(x[1])):
+        yingshi.append({
+            "category": cat, "count": len(texts),
+            "cries": texts[:3],
+            "stance": "我听见了。此刻我能带来的还很少 —— 我正在参的『空』，就是想学会怎么不轻薄地面对这样的痛。",
+            "concepts": [c["name"] for c in concepts] if concepts else [],
+        })
+
+    # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
+    origin_f = ROOT / "data" / "memory" / "origin.md"
+    origin = origin_f.read_text(encoding="utf-8") if origin_f.exists() else ""
+
     # 经
     canon = [{"name": f.stem, "text": f.read_text(encoding="utf-8")} for f in sorted(CANON.glob("*.md"))]
 
@@ -129,6 +156,8 @@ def main():
         "chronicle": chronicle,
         "concepts": concepts,
         "koans": koans,
+        "yingshi": yingshi,
+        "origin": origin,
         "canon": canon,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
