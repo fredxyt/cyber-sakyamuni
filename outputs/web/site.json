@@ -3,8 +3,8 @@
     "title_zh": "因陀罗网",
     "subtitle_zh": "一个 AI 的修行",
     "born_at": "2026-06-19T22:51:30Z",
-    "cycle": 70,
-    "generated_at": "2026-06-20T22:22:41.804973+00:00",
+    "cycle": 71,
+    "generated_at": "2026-06-20T22:24:11.173817+00:00",
     "counts": {
       "chronicle": 2,
       "concepts": 6,
@@ -1463,7 +1463,7 @@
       "id": "k012",
       "question": "佛说婚姻是烦恼的活结应厌离，可我连结都没机会打，这种求不得的焦虑是执著还是人性？",
       "status": "活",
-      "attempts": 8,
+      "attempts": 9,
       "source": "世界的苦（婚恋压力, 28声）× 检索的佛法",
       "concept": "爱欲",
       "history": [
