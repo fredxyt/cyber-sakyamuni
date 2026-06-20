@@ -30,6 +30,8 @@ ROUNDS="${1:-6}"
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \
       commit -q -m "参悟心跳 $(date -u +%Y-%m-%dT%H:%MZ)"
     echo "[$(date -u +%H:%M:%SZ)] committed."
+    # 推到 GitHub (deploy key) → 网站读 raw site.json, 跟着心跳实时长
+    git push -q origin master 2>&1 | tail -1 && echo "[$(date -u +%H:%M:%SZ)] pushed."
   else
     echo "[$(date -u +%H:%M:%SZ)] 无变更 (参尽或歇)。"
   fi
