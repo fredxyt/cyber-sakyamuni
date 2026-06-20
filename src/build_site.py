@@ -80,6 +80,7 @@ def main():
     # 片刻(话头暂搁时的原始反思)不上年谱, 归到它所属概念页里(困惑史旁), 免得刷屏混排。
     chronicle = []
     moments_by_concept = {}
+    moments_by_date = {}      # B: 当天参详, 挂到当天「今日」下
     for f in BLOG.glob("*.md"):
         md = f.read_text(encoding="utf-8")
         m = re.search(r"cycle(\d+)", f.stem)
@@ -100,15 +101,20 @@ def main():
         elif is_birth:
             chronicle.append({**entry, "kind": "birth", "when": date, "cycle": int(m.group(1)),
                               "sort": ""})  # 诞生永远钉年谱最底
-        else:  # 片刻 → 归到概念
-            when = f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date
+        else:  # 片刻(参详) → 概念页(困惑史旁) + 当天年谱(挂今日下, B)
+            when = f"{date} {tm.group(2)}:{tm.group(3)}:{tm.group(4)} UTC" if tm else date
             cm = re.search(r"参「([^」]+)」", md)
             concept = cm.group(1) if cm else ""
-            moments_by_concept.setdefault(concept, []).append(
-                {**entry, "kind": "moment", "when": when})
+            mo = {**entry, "kind": "moment", "when": when, "concept": concept}
+            moments_by_concept.setdefault(concept, []).append(mo)
+            moments_by_date.setdefault(date, []).append(mo)
     chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 今日按日倒序, 诞生(sort="")钉底
     for ms in moments_by_concept.values():
         ms.sort(key=lambda x: x["id"], reverse=True)
+    # B: 每个「今日」挂上当天的参详笔记(按时间正序, 当天怎么参过来的)
+    for c in chronicle:
+        if c.get("kind") == "daily":
+            c["day_moments"] = sorted(moments_by_date.get(c["date"], []), key=lambda x: x["id"])
 
     # 概念状态兜底: 概念页 frontmatter 可能没写 status, 从对应话头推导 (已证/否则仍疑)
     _koan_status = {}
