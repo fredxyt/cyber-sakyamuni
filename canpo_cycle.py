@@ -27,6 +27,31 @@ def has_alive():
     return any(k["status"] == "活" for k in d["koans"])
 
 
+def try_reactivate():
+    """回头: 没有活话头时, 看老疑里有没有【被新洞见反复触及】的 —— 带新眼睛重参。
+    只有自暂搁以来【新攒了引用】才回头 (意义驱动, 不空转)。返回是否激活了。"""
+    sys.path.insert(0, str(SRC))
+    import llm_memory
+    d = json.loads(KOANS.read_text(encoding="utf-8"))
+    best, best_gain = None, 0
+    for k in d["koans"]:
+        if k["status"] != "暂搁":
+            continue
+        now_ref = llm_memory.count_references(k.get("concept", ""))
+        gain = now_ref - k.get("ref_at_pause", 0)
+        if gain >= 1 and now_ref > best_gain:   # 自暂搁后又被别的概念引用过
+            best, best_gain = k, now_ref
+    if best is None:
+        return False
+    best["status"] = "活"
+    best["no_move_streak"] = 0
+    best["attempts"] = 0   # 新一轮生命, 重新给参的预算
+    best["source"] = best.get("source", "") + f" ·【回头】被{best_gain}个概念触及, 带新理解重参"
+    KOANS.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[心跳] 回头: 重新激活老疑「{best.get('concept')}」(被 {best_gain} 个概念触及)", file=sys.stderr)
+    return True
+
+
 def run(script, *args):
     r = subprocess.run([sys.executable, str(SRC / script), *args], cwd=str(ROOT))
     return r.returncode
@@ -39,10 +64,13 @@ def main():
 
     print("[心跳] —— 参悟一次 ——", file=sys.stderr)
 
-    # 1. 确保有活话头
+    # 1. 确保有活话头: 先回头(老疑被新洞见触及), 否则从世界孕育新疑
     if not has_alive():
-        print("[心跳] 无活话头, 孕育新疑…", file=sys.stderr)
-        run("birth_koan.py")
+        if try_reactivate():
+            pass  # 回头成功, 重参老疑
+        else:
+            print("[心跳] 无活话头, 孕育新疑…", file=sys.stderr)
+            run("birth_koan.py")
         if not has_alive():
             print("[心跳] 孕育未成 (世界暂无新料?), 本次歇。", file=sys.stderr)
             return
@@ -53,7 +81,15 @@ def main():
 
     # 3. 重建站点 (前端读 site.json)
     run("build_site.py")
-    print("[心跳] —— 完 ——", file=sys.stderr)
+
+    # 4. 推进 cycle 计数 + last
+    from datetime import datetime, timezone
+    st_path = ROOT / "data" / "state" / "cultivation.json"
+    st = json.loads(st_path.read_text(encoding="utf-8"))
+    st["cycle"] = st.get("cycle", 0) + 1
+    st["last_cultivation_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    st_path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[心跳] —— 完 (cycle {st['cycle']}) ——", file=sys.stderr)
 
 
 if __name__ == "__main__":

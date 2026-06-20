@@ -247,9 +247,11 @@ def main():
             koan["status"] = "暂搁"
             print(f"     ⏹ 参满 {ATTEMPT_CAP} 轮硬上限, 强制『暂搁』(防表演深刻, 该换话头)", file=sys.stderr)
 
-        # 证: 一个话头转暂搁/已证时, 收成 —— 蒸馏现在的理解 + 记对来源 + 写札记
+        # 证: 一个话头转暂搁/已证时, 收成 —— 内化 + 蒸馏 + 札记
         if koan["status"] in ("暂搁", "已证"):
             realize_mod.realize(koan)
+            # 回头机制: 记下此刻"被引用数", 日后新引用攒够才重新激活 (带新眼睛)
+            koan["ref_at_pause"] = llm_memory.count_references(koan.get("concept", "空"))
 
         save_koans(koans)
         time.sleep(args.sleep)

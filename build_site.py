@@ -75,20 +75,25 @@ def parse_wrong_turns(md):
 
 
 def main():
-    # 札记 (chronicle) — 主体
+    # 札记 (chronicle) — 主体。24x7 不停参, 文件名秒级 (2026-06-20T01-12-30Z), 新的在前。
     chronicle = []
-    for f in sorted(BLOG.glob("*.md")):
+    for f in BLOG.glob("*.md"):
         md = f.read_text(encoding="utf-8")
         m = re.search(r"cycle(\d+)", f.stem)
+        # 秒级戳 2026-06-20T01-12-30Z → 日期 + 时间; 旧的 2026-06-19-cycle1 → 仅日期
+        tm = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})", f.stem)
         date_m = re.match(r"(\d{4}-\d{2}-\d{2})", f.stem)
+        date = date_m.group(1) if date_m else ""
+        when = f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date
         chronicle.append({
-            "id": f.stem,
-            "date": date_m.group(1) if date_m else "",
+            "id": f.stem, "sort": f.stem,
+            "date": date, "when": when,
             "cycle": int(m.group(1)) if m else None,
             "title": first_heading(md),
             "markdown": md,
             "excerpt": excerpt(re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE), 100),
         })
+    chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 新札记在前
 
     # 概念 (义理门) — 带困惑史
     concepts = []
