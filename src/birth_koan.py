@@ -23,40 +23,56 @@ STATE = ROOT / "data" / "state" / "cultivation.json"
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 
 
-def _recent_suffering(n=12):
-    """拉最近的世界苦 (孕育用, 不卡水位线; 优先 watermark 之后, 不够则放宽)。"""
-    st = json.loads(STATE.read_text(encoding="utf-8"))
-    wm = st["watermarks"].get("question_created_at") or "2000-01-01"
-    rows = neo4j_io.read_new_suffering(wm, limit=n)
-    if len(rows) < 4:  # watermark 后太少, 放宽到近几日
-        rows = neo4j_io.read_new_suffering("2026-06-17T00:00:00", limit=n)
-    return rows
+COVERAGE = ROOT / "data" / "state" / "coverage.json"
 
 
-def _advance_watermark(rows):
-    """#3: 读完世界苦, 推进水位线到读到的最新一条 —— 下次读更新的苦, 别困在死水。"""
-    if not rows:
-        return
-    st = json.loads(STATE.read_text(encoding="utf-8"))
-    newest = max(r["ts"] for r in rows)
-    if newest > (st["watermarks"].get("question_created_at") or ""):
-        st["watermarks"]["question_created_at"] = newest
-        STATE.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"[孕育] 水位线推进到 {newest}", file=sys.stderr)
+def _coverage():
+    if COVERAGE.exists():
+        return json.loads(COVERAGE.read_text(encoding="utf-8"))
+    return {"_comment": "应世类型覆盖台账。一类苦参一次, 防重、保全覆盖。", "covered": {}}
+
+
+def _mark_covered(app, koan_id, concept, n):
+    cov = _coverage()
+    cov["covered"][app] = {
+        "koan": koan_id, "concept": concept,
+        "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "q_count": n,
+    }
+    try:
+        cov["total_types"] = len(neo4j_io.list_applications())  # 分母: 世界苦的类型总数
+    except Exception:
+        pass
+    COVERAGE.write_text(json.dumps(cov, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def pick_uncovered():
+    """扫盲: 选一个【还没参过】、且苦量最大的应世类型。全参过则 None。"""
+    covered = set(_coverage()["covered"].keys())
+    for a in neo4j_io.list_applications():   # 已按数量降序
+        if a["app"] not in covered:
+            return a
+    return None
 
 
 def birth():
     koans = json.loads(KOANS.read_text(encoding="utf-8"))
     existing_q = {k["question"] for k in koans["koans"]}
 
-    suffering = _recent_suffering()
-    if not suffering:
-        print("[孕育] 暂无世界苦可取, 跳过。", file=sys.stderr)
+    # 扫盲式选题: 挑还没参过、苦量最大的一类
+    cat = pick_uncovered()
+    if cat is None:
+        all_apps = len(neo4j_io.list_applications())
+        print(f"[孕育] 全部 {all_apps} 类世界苦已参过 (覆盖100%)。静待新类型/回头。", file=sys.stderr)
         return None
-    cries = "\n".join(f"· [{r['app']}] {r['text'][:90]}" for r in suffering[:10])
+    suffering = neo4j_io.read_suffering_by_app(cat["app"], limit=10)
+    if not suffering:
+        print(f"[孕育] 类型「{cat['app']}」取不到问题, 跳过。", file=sys.stderr)
+        return None
+    print(f"[孕育] 扫盲选中类型「{cat['app']}」({cat['n']} 声苦)", file=sys.stderr)
+    cries = "\n".join(f"· {r['text'][:110]}" for r in suffering[:8])
 
-    # 检索与这批苦相关的佛法
-    seed_query = " ".join(r["app"] for r in suffering[:5]) + " 苦 解脱"
+    # 检索与这类苦相关的佛法
+    seed_query = cat["app"] + " 苦 解脱"
     try:
         dharma = neo4j_io.retrieve_dharma(seed_query, k=5)
         dharma_txt = "\n".join(f"· {c.get('summary') or c.get('text','')}" for c in dharma)
@@ -104,13 +120,13 @@ def birth():
     koans["koans"].append({
         "id": nid, "question": q, "concept": concept,
         "born_cycle": json.loads(STATE.read_text(encoding="utf-8")).get("cycle", 0),
-        "born_at": date,
-        "source": f"世界的苦（{'、'.join(sorted({r['app'] for r in suffering[:5]}))}）× 检索的佛法",
+        "born_at": date, "app": cat["app"],
+        "source": f"世界的苦（{cat['app']}, {cat['n']}声）× 检索的佛法",
         "status": "活", "attempts": 0, "no_move_streak": 0, "history": [],
     })
     KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[孕育] 新话头 {nid}: {q}", file=sys.stderr)
-    _advance_watermark(suffering)  # #3: 读过的世界苦不再重读, 水位线前进
+    _mark_covered(cat["app"], nid, concept, cat["n"])  # 台账标记: 这类苦已参, 防重
+    print(f"[孕育] 新话头 {nid}「{cat['app']}」: {q}", file=sys.stderr)
     return nid
 
 

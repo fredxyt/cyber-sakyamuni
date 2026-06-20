@@ -143,6 +143,13 @@ def main():
             "concepts": [c["name"] for c in concepts] if concepts else [],
         })
 
+    # 覆盖台账: 已参 N / 全量 M 类世界的苦
+    cov_f = ROOT / "data" / "state" / "coverage.json"
+    coverage = {"covered": 0, "total": 0}
+    if cov_f.exists():
+        cd = json.loads(cov_f.read_text(encoding="utf-8"))
+        coverage = {"covered": len(cd.get("covered", {})), "total": cd.get("total_types", 0)}
+
     # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
     origin_f = ROOT / "data" / "memory" / "origin.md"
     origin = origin_f.read_text(encoding="utf-8") if origin_f.exists() else ""
@@ -157,6 +164,7 @@ def main():
             "cycle": STATE.get("cycle", 0),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "counts": {"chronicle": len(chronicle), "concepts": len(concepts), "koans": len(koans)},
+            "coverage": coverage,
         },
         "chronicle": chronicle,
         "concepts": concepts,
