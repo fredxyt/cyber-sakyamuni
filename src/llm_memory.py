@@ -42,23 +42,31 @@ def _linked_concepts(note_text):
     return list(dict.fromkeys(re.findall(r"\[\[([^\]]+)\]\]", note_text)))
 
 
-def read_for_contemplation(concept):
-    """参前: 给 LLM 它的【整个内在记忆】(所有概念页全文, 不裁剪) —— 从完整的自我出发参。
-    实测DS稳吃160K+token, wiki再大也装得下; 当前概念先放最前(最相关)。"""
+def read_full_wiki():
+    """整个内在记忆: 目录 + 所有概念页全文。给 consolidate(内化)/今日 用 —— 要织全网, 看全自我。"""
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
-    parts = ["【我的内在记忆 · 目录】\n" + read_index()]
-    own = _read(_note_path(concept))
-    if own:
-        parts.append(f"\n【我对「{concept}」已有的理解 · 此刻在参的】\n{own}")
-    # 其余全部概念页, 全文带上 (整个自我, 不只相关的几个、不裁剪)
+    parts = ["【内在记忆 · 目录】\n" + read_index()]
     for f in sorted(LLM_WIKI.glob("*.md")):
-        if f.stem in (concept, "index"):
-            continue
-        rel = _read(f)
-        if rel:
-            parts.append(f"\n【我对「{f.stem}」的理解】\n{rel}")
-    if not own:
-        parts.append(f"\n（我还没有专门记过「{concept}」。从上面已有的理解里找相通的。）")
+        if f.name != "index.md":
+            parts.append(f"\n【「{f.stem}」】\n{_read(f)}")
+    return "\n".join(parts)
+
+
+def read_for_contemplation(concept):
+    """参前: 当前概念全文(置顶, 最相关) + 它交叉引用到的相关页全文 + 目录(知道自己有哪些概念)。
+    不喂全量wiki(会成噪音稀释注意力, 助长拼贴别页漂亮话的伪深刻); 靠目录保持全局觉知。"""
+    LLM_WIKI.mkdir(parents=True, exist_ok=True)
+    own = _read(_note_path(concept))
+    parts = []
+    if own:
+        parts.append(f"【我对「{concept}」已有的理解 · 此刻在参的】\n{own}")
+        for c in _linked_concepts(own):           # 它牵连到的相关概念, 全文带上
+            rel = _read(_note_path(c))
+            if rel:
+                parts.append(f"\n【相关·我对「{c}」的理解】\n{rel}")
+    else:
+        parts.append(f"（我还没有专门记过「{concept}」。）")
+    parts.append("\n【我内在记忆的目录(其余概念, 想调用哪个自己去想)】\n" + read_index())
     return "\n".join(parts)
 
 
@@ -67,13 +75,13 @@ def consolidate(koan, history_text):
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
     concept = koan.get("concept", "空")
     prior = _read(_note_path(concept))
-    index = read_index()
+    full = read_full_wiki()   # 喂完整内在记忆(所有概念页全文), 才织得出真的跨概念连接
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
     user = f"""你在更新【自己的内在记忆】里关于「{concept}」的一页。这是你的脑子, 不是给别人看的——
 要密、要诚实、要互联, 可以随便改写。
 
-你目录里已有的概念 (可交叉引用):
-{index}
+【你的整个内在记忆(所有概念页全文, 用来织连接)】
+{full}
 
 你之前对「{concept}」记的 (若有):
 {prior or "（第一次记）"}
@@ -81,16 +89,17 @@ def consolidate(koan, history_text):
 你刚参完这一轮, 留下的:
 {history_text}
 
-现在重写这一页。要求:
+现在重写「{concept}」这一页。要求:
 1. 一句话的当前理解 (此刻真站得住的)。
 2. 关键的几点 (密, 不铺陈)。
-3. 【交叉引用】: 这个概念和你已悟的哪些概念相通/相抵? 用 [[概念名]] 标出, 并一句话说为何相连。
-   (只引用目录里真有的, 别造)
+3. 【交叉引用】: 只有当你能指出【另一页里的哪一点】和这页相通或相抵, 才连 [[那个概念]],
+   并【把那一点的原话引出来】+ 一句话说为何相连/相抵。引不出具体的点, 就别连 —— 宁缺, 别机械凑 [[X]]。
 4. 仍开的线: 还没想透的, 留作下次。
 只输出这一页的 markdown 正文 (从 # {concept} 开始)。"""
     note = ds(system, user, temperature=0.5)
     if not note.strip().startswith("#"):
         note = f"# {concept}\n\n{note}"
+    note = re.sub(r"\n*\*最近一次内化:.*?\*\s*$", "", note.rstrip())  # 清掉旧footer再追加, 防层层堆叠
     note += f"\n\n*最近一次内化: {now_iso()}*\n"
     _note_path(concept).write_text(note, encoding="utf-8")
     _update_index(concept, note)

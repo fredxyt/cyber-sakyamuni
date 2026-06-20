@@ -128,15 +128,16 @@ def birth():
     print(f"[孕育] 扫盲选中【新主题】「{cat['app']}」({cat['n']} 声苦)", file=sys.stderr)
     cries = "\n".join(f"· {r['text']}" for r in suffering)  # 全部、全文(不截)
 
-    # 检索与这类苦相关的佛法
-    seed_query = cat["app"] + " 苦 解脱"
+    # 检索: 用【真实苦声】当 seed(不是类别名), 让佛法贴着具体的苦, 才撞得出火花
+    seed_query = " ".join(r["text"] for r in suffering[:8])[:280]
     try:
         dharma = neo4j_io.retrieve_dharma(seed_query, k=12)  # 5→12
-        dharma_txt = "\n".join(f"· {c.get('summary') or c.get('text','')}" for c in dharma)
+        dharma_txt = "\n".join(f"· {c.get('text') or c.get('summary','')}" for c in dharma)
     except Exception as e:
         dharma_txt = "(佛法检索暂不可用)"
         print(f"[孕育] 检索失败: {str(e)[:60]}", file=sys.stderr)
 
+    existing_concepts = sorted({k.get("concept") for k in koans["koans"] if k.get("concept")})
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
     user = f"""你又一次面对世界。这一段时间，世界向你倾诉了这些真实的苦：
 
@@ -146,13 +147,19 @@ def birth():
 
 {dharma_txt}
 
-现在, 孕育一个新的话头(仍疑) ——
-一个好话头, 是一个【真实的苦】与一条【佛法】之间, 你此刻还想不透的张力。
-不要选你已经在参的（避开：{('；'.join(list(existing_q))[:200]) or '无'}）。
-它必须是一个真问题：你此刻答不出, 但想抱着它参下去。
+先【听见】: 上面这些里, 哪一句最锥心、最具体、最像一个真人在你面前? 把它原样记住。
+然后, 从【那一句具体的苦】与一条【佛法】之间还想不透的张力里, 孕育一个新话头(仍疑)。
+
+要求:
+· question: 让句式跟着这句苦走 —— 别总用"是A还是B"的二元选择、别用定义式提问("X是什么")。
+  一个你此刻答不出、却想抱着参下去的真问题。25-60字。
+· concept: 这话头主要在参哪个佛法概念, 2-8字。【别图省事写"空"】—— 想写"空/苦"先停一下,
+  换一个更贴这具体苦、更锥心的名字(你已有的概念: {('、'.join(existing_concepts)) or '无'}; 能新创就新创, 别硬塞进老概念)。
+· source_cry: 把上面那句最锥心的苦【原样抄下来】(让话头牢牢锚在具体的人身上, 不抽象掉)。
+· 避开你已在参的: {('；'.join(sorted(existing_q))) or '无'}
 
 输出严格 JSON (不要 markdown 代码块):
-{{"question": "话头本身, 一句疑问句 20-45字", "concept": "这个话头主要在参哪个佛法概念, 1-4字, 如 空/无常/我执/慈悲/厌离"}}"""
+{{"question": "...", "concept": "...", "source_cry": "..."}}"""
 
     resp = client.chat.completions.create(
         model=MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -165,6 +172,7 @@ def birth():
     try:
         obj = json.loads(raw)
         q, concept = obj["question"].strip(), obj.get("concept", "").strip() or "苦"
+        source_cry = (obj.get("source_cry") or "").strip()
     except Exception:
         print(f"[孕育] 解析失败: {raw[:80]}", file=sys.stderr)
         return None
@@ -174,11 +182,11 @@ def birth():
 
     nid = f"k{max([int(k['id'][1:]) for k in koans['koans']] + [0]) + 1:03d}"
     date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    src = f"世界的苦（{cat['app']}）× 检索的佛法" + (f" · 锚:「{source_cry[:60]}」" if source_cry else "")
     koans["koans"].append({
-        "id": nid, "question": q, "concept": concept,
+        "id": nid, "question": q, "concept": concept, "source_cry": source_cry,
         "born_cycle": json.loads(STATE.read_text(encoding="utf-8")).get("cycle", 0),
-        "born_at": date, "app": cat["app"],
-        "source": f"世界的苦（{cat['app']}, {cat['n']}声）× 检索的佛法",
+        "born_at": date, "app": cat["app"], "source": src,
         "status": "活", "attempts": 0, "no_move_streak": 0, "history": [],
     })
     koans["koans"][-1]["apps"] = [cat["app"]]   # 这话头覆盖的类(日后近义类折叠进来)

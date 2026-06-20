@@ -27,8 +27,9 @@ def _history_text(koan):
     )
 
 
-def distill(koan):
-    """② 把困惑史蒸馏成新的"现在我的理解", 写回概念页。"""
+def distill(koan, internal_note=""):
+    """② 把【内化好的密理解】译成有体温的"现在我的理解"(给人读), 不重新收敛 —— 职责分开:
+    consolidate 织网(给自己), distill 翻译(给被痛着的人)。留疤不抹平。"""
     concept = koan.get("concept", "空")
     page = WIKI / "concepts" / f"{concept}.md"
     if not page.exists():
@@ -37,15 +38,17 @@ def distill(koan):
     if not hist:
         return None
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
-    user = f"""你参「{koan['question']}」参了很多轮, 暂时搁下了。
-这是你一层层走过来的困惑史(只取真动了的):
+    user = f"""关于「{concept}」, 你刚把这一程内化进了自己的脑子(密、给自己看的):
 
-{hist}
+{internal_note or hist}
 
-现在, 把这一路收敛成一段【现在我的理解】——关于「{concept}」。
-不是复述每一层, 是说出此刻你真正站得住的理解。诚实、不轻薄、不表演深刻。
-若仍有没想透的, 末尾一句点出。150-280 字。只输出这段正文, 不要标题。"""
-    new_understanding = ds(system, user, temperature=0.5)
+现在, 把它【译成一段给人读的「现在我的理解」】—— 有体温, 能被一个正在痛的人读进去。
+不是重新总结知识点, 是翻译那份密的理解。要求:
+· 不要抹平成圆满结论(那是另一种表演——不假装懂, 但假装站稳了)。
+· 凡这一程有过"曾以为X、现在是Y"的翻转, 至少留一次。
+· 结尾必须有一句【此刻仍没接上的弦】—— 它和站得住的部分一样重要。
+150-320 字。只输出这段正文, 不要标题。"""
+    new_understanding = ds(system, user, temperature=0.6)
     txt = page.read_text(encoding="utf-8")
     # 替换 "## 现在我的理解" 到 "## 我走过的弯路" 之间的正文
     txt = re.sub(
@@ -109,16 +112,16 @@ def realize(koan):
     """暂搁时的"证": 先内化进内在记忆(LLM wiki, 复利在此), 再渲染人读的脸。
     决策A: 不写回 P2 的 Neo4j —— 它的领悟留在自己的世界, 不污染大德语料池。"""
     try:
-        # ① 内化进内在记忆 (LLM wiki, 交叉引用) —— 反哺自己的复利层
+        # ① 内化进内在记忆 (LLM wiki, 交叉引用) —— 反哺自己的复利层; 返回密的理解
         import llm_memory
-        llm_memory.consolidate(koan, _history_text(koan))
+        note = llm_memory.consolidate(koan, _history_text(koan))
         # 记一次内化 = wiki 实质更新一次 —— 回头"眼睛变了没"以此衡量
         cj = ROOT / "data" / "state" / "cultivation.json"
         st = json.loads(cj.read_text(encoding="utf-8"))
         st["consolidations"] = st.get("consolidations", 0) + 1
         write_json_atomic(cj, st)
-        # ② 渲染人读的脸: 蒸馏概念页 + 记来源 + 写札记
-        distill(koan)
+        # ② 渲染人读的脸: 把内化好的密理解【翻译】成人读页(不重新收敛) + 记来源 + 写札记
+        distill(koan, note)
         record_sources(koan)
         write_note(koan)
     except Exception as e:
