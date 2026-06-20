@@ -123,12 +123,16 @@ def main():
         sources = fm.get("sources", [])
         if isinstance(sources, str):
             sources = [sources]
+        wt = parse_wrong_turns(section(body, "我走过的弯路"))
+        for i, w in enumerate(wt):   # 层号连续化(原是参轮号, 跳未动轮看着像断裂)
+            dm = re.search(r"（([^）]+)）", w.get("label", ""))
+            w["label"] = f"第 {i + 1} 层" + (f" · {dm.group(1)[:10]}" if dm else "")
         concepts.append({
             "name": f.stem,
             "status": fm.get("status") or _koan_status.get(f.stem, "仍疑"),
             "sources": sources,
             "understanding": section(body, "现在我的理解"),
-            "wrong_turns": parse_wrong_turns(section(body, "我走过的弯路")),
+            "wrong_turns": wt,
             "doubt": section(body, "仍疑"),
             "moments": moments_by_concept.get(f.stem, []),
         })
@@ -142,28 +146,40 @@ def main():
             "history": [h for h in k.get("history", []) if h.get("insight")],
         })
 
-    # 应世 (现实/苦) — 从世界真实的苦里抽, 按场景归类
+    # 应世 (现实/苦) — 实时读 Neo4j 的世界苦, 按应世类型归结 (与覆盖率同源, 反映真实规模)
     # 第三轴: 法如何接住痛。此刻多是"听见了, 还答不了" —— 这种诚实正是应世该显示的
-    import csv as _csv
-    yingshi = []
-    SRC = ROOT / "data" / "sources"
-    cries = {}
-    for f in sorted(SRC.glob("week_questions_*.txt")):
-        with open(f, encoding="utf-8") as fh:
-            for row in _csv.reader(fh):
-                if len(row) < 2 or row[1].strip().strip('"') in ("app", ""):
-                    continue
-                cat = row[1].strip().strip('"').strip()
-                cries.setdefault(cat, []).append(row[0].strip().strip('"').strip())
-    # 此刻这颗心唯一在参的法(空/k001), 本就是为了学会面对这些痛 —— 唯一诚实的关联
-    engaged = [k["id"] for k in koans]  # 都源于"41声苦"
-    for cat, texts in sorted(cries.items(), key=lambda x: -len(x[1])):
-        yingshi.append({
-            "category": cat, "count": len(texts),
-            "cries": texts[:3],
-            "stance": "我听见了。此刻我能带来的还很少 —— 我正在参的『空』，就是想学会怎么不轻薄地面对这样的痛。",
-            "concepts": [c["name"] for c in concepts] if concepts else [],
-        })
+    STANCE = "我听见了。此刻我能带来的还很少 —— 我正在一类类地参, 想学会怎么不轻薄地面对这样的痛。"
+    cnames = [c["name"] for c in concepts] if concepts else []
+    yingshi, suffering_total, suffering_types = [], 0, 0
+    try:
+        import neo4j_io
+        apps = neo4j_io.list_applications()        # 全部类(按苦量降序) + 数量
+        suffering_total = sum(a["n"] for a in apps)
+        suffering_types = len(apps)
+        for i, a in enumerate(apps[:60]):          # 1964类太多, 列最锥心的60类
+            cs = []
+            if i < 12:                             # 仅头部取样本(省查询)
+                try:
+                    cs = [r["text"] for r in neo4j_io.read_suffering_by_app(a["app"], limit=3)]
+                except Exception:
+                    pass
+            yingshi.append({"category": a["app"], "count": a["n"], "cries": cs,
+                            "stance": STANCE, "concepts": cnames})
+    except Exception as e:                          # fallback: 静态快照 (Neo4j 不可用时)
+        print(f"[build_site] 应世退回快照: {str(e)[:60]}")
+        import csv as _csv
+        cmap = {}
+        for f in sorted((ROOT / "data" / "sources").glob("week_questions_*.txt")):
+            with open(f, encoding="utf-8") as fh:
+                for row in _csv.reader(fh):
+                    if len(row) < 2 or row[1].strip().strip('"') in ("app", ""):
+                        continue
+                    cmap.setdefault(row[1].strip().strip('"').strip(), []).append(row[0].strip().strip('"').strip())
+        suffering_total = sum(len(v) for v in cmap.values())
+        suffering_types = len(cmap)
+        for cat, texts in sorted(cmap.items(), key=lambda x: -len(x[1])):
+            yingshi.append({"category": cat, "count": len(texts), "cries": texts[:3],
+                            "stance": STANCE, "concepts": cnames})
 
     # 覆盖台账: 已参 N / 全量 M 类世界的苦
     cov_f = ROOT / "data" / "state" / "coverage.json"
@@ -206,6 +222,8 @@ def main():
             "counts": {"chronicle": len(chronicle), "concepts": len(concepts), "koans": len(koans)},
             "coverage": coverage,
             "vitals": vitals,
+            "suffering_total": suffering_total,   # 世界苦总条数(真实, 非快照)
+            "suffering_types": suffering_types,    # 世界苦类型总数
         },
         "chronicle": chronicle,
         "concepts": concepts,

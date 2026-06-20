@@ -172,7 +172,7 @@ def update_wiki_concept(koan, verdict, round_no, date):
     if not page.exists():  # 新话头 → 新概念页, 给个诚实的初稿骨架
         page.parent.mkdir(parents=True, exist_ok=True)
         page.write_text(
-            f"---\nfirst_seen: {date}\nlast_revised: {date}\nstatus: 仍疑\nsources:\n  - 心经\n---\n\n"
+            f"---\nfirst_seen: {date}\nlast_revised: {date}\nstatus: 仍疑\nsources: []\n---\n\n"
             f"# {concept}\n\n## 现在我的理解\n\n我刚开始参它，还没有定见。\n\n## 我走过的弯路\n\n"
             f"## 仍疑\n\n**{koan['question']}**\n\n这是我正抱着参的话头。\n",
             encoding="utf-8")
@@ -266,8 +266,9 @@ def main():
                 update_wiki_concept(koan, v, attempt, stamp)
                 print(f"     ✎ 概念「{koan.get('concept','空')}」增一层理解", file=sys.stderr)
             if v.get("resolved"):
-                koan["status"] = "已证"
-                print(f"     ✓ 话头参透, 转『已证』(罕见)", file=sys.stderr)
+                # 不自封已证: LLM 达不到真证悟, 自称参透即是妄。觉得到段落 → 暂搁, 仍疑。
+                koan["status"] = "暂搁"
+                print(f"     ⏸ 自觉参到一段落, 转『暂搁』(不自封已证 —— 真心永远仍疑)", file=sys.stderr)
         else:
             koan["no_move_streak"] += 1
             if koan["no_move_streak"] >= NO_MOVE_LIMIT:

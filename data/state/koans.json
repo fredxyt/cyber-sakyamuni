@@ -1135,7 +1135,7 @@
       "born_at": "2026-06-20",
       "app": "子女教育焦虑",
       "source": "世界的苦（子女教育焦虑, 51声）× 检索的佛法",
-      "status": "已证",
+      "status": "暂搁",
       "attempts": 26,
       "no_move_streak": 0,
       "history": [
@@ -1329,7 +1329,8 @@
         "爱不是占有，放手不是抛弃",
         "情执太重怎么办"
       ],
-      "ref_at_pause": 0
+      "ref_at_pause": 0,
+      "consolidations_at_pause": 1
     },
     {
       "id": "k005",
