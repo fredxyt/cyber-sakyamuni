@@ -86,18 +86,19 @@ def retrieve_dharma(query_text: str, k: int = 5):
 
 
 # ── 证: 洞见写回 Neo4j (让 P2/P3 用上参悟成果) ──
-def write_realization(concept: str, insight: str, cycle: int, date: str):
-    """把一个稳定的洞见写回成节点, 挂在概念上。
-    Neo4j 长出'这颗心的理解', P2 答题(GraphRAG)日后能检索到它。
-    """
-    safe = insight.replace('"', "'").replace("\n", " ")[:1200]
-    q = (
-        f'MERGE (c:Concept {{name: "{concept}"}}) '
-        f'CREATE (r:Realization {{text: "{safe}", cycle: {cycle}, date: "{date}", '
-        f'source: "canpo"}}) '
-        f'MERGE (c)-[:REALIZED]->(r) RETURN r'
+def write_realization(concept: str, insight: str, cycle: int):
+    """证·写回: 洞见嵌入并写成 :CanpoRealization (隔离标签, P2 暂看不见)。
+    服务器端 dharma_writeback.py 做 embedding + 入图; 验证好后 golive 才进 P2 索引。"""
+    text = insight.replace('"', "'").replace("\n", " ").strip()[:1500]
+    remote = (
+        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
+        "source .env.gemini && source .env.neo4j && export PYTHONPATH=/home/ubuntu/fdz2025 && "
+        f'printf %s "{text}" | python scripts/tools/dharma_writeback.py write "{concept}" {cycle}'
     )
-    return _cypher(q)
+    out = _sh(remote, timeout=120)
+    if out.returncode != 0:
+        raise RuntimeError(f"写回失败: {out.stderr[:200]}")
+    return out.stdout.strip()
 
 
 def _split_plain(line: str):

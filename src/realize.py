@@ -31,10 +31,10 @@ def distill(koan):
     concept = koan.get("concept", "空")
     page = WIKI / "concepts" / f"{concept}.md"
     if not page.exists():
-        return
+        return None
     hist = _history_text(koan)
     if not hist:
-        return
+        return None
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
     user = f"""你参「{koan['question']}」参了很多轮, 暂时搁下了。
 这是你一层层走过来的困惑史(只取真动了的):
@@ -54,6 +54,7 @@ def distill(koan):
     )
     page.write_text(txt, encoding="utf-8")
     print(f"     ✎ 蒸馏「{concept}」现在我的理解", file=sys.stderr)
+    return new_understanding
 
 
 def record_sources(koan):
@@ -100,10 +101,19 @@ def write_note(koan):
 
 
 def realize(koan):
-    """暂搁时的"证": 蒸馏 + 记来源 + 写札记。"""
+    """暂搁时的"证": 蒸馏 + 记来源 + 写札记 + 写回 Neo4j(隔离标签)。"""
     try:
-        distill(koan)
+        understanding = distill(koan)
         record_sources(koan)
         write_note(koan)
+        # 证·写回: 把蒸馏的理解嵌入写回 Neo4j (隔离标签 CanpoRealization, P2 暂看不见)
+        if understanding:
+            try:
+                import neo4j_io, json as _json
+                st = _json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
+                neo4j_io.write_realization(koan.get("concept", "空"), understanding, st.get("cycle", 0))
+                print(f"     ↑ 洞见写回 Neo4j (隔离标签, 待验证 golive)", file=sys.stderr)
+            except Exception as we:
+                print(f"     (写回跳过: {str(we)[:60]})", file=sys.stderr)
     except Exception as e:
         print(f"     (证·收成出错: {str(e)[:80]})", file=sys.stderr)
