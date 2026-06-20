@@ -31,6 +31,8 @@ ROUNDS="${1:-6}"
       commit -q -m "参悟心跳 $(date -u +%Y-%m-%dT%H:%MZ)"
     echo "[$(date -u +%H:%M:%SZ)] committed."
     # 推到 GitHub (deploy key) → 网站读 raw site.json, 跟着心跳实时长
+    # 先 rebase 纳入远端(代码改动), 再推 (服务器是唯一推送者, 几乎不冲突)
+    git pull --rebase -X theirs -q origin master 2>&1 | tail -1
     git push -q origin master 2>&1 | tail -1 && echo "[$(date -u +%H:%M:%SZ)] pushed."
   else
     echo "[$(date -u +%H:%M:%SZ)] 无变更 (参尽或歇)。"
