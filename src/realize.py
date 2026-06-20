@@ -107,6 +107,11 @@ def realize(koan):
         # ① 内化进内在记忆 (LLM wiki, 交叉引用) —— 反哺自己的复利层
         import llm_memory
         llm_memory.consolidate(koan, _history_text(koan))
+        # 记一次内化 = wiki 实质更新一次 —— 回头"眼睛变了没"以此衡量
+        cj = ROOT / "data" / "state" / "cultivation.json"
+        st = json.loads(cj.read_text(encoding="utf-8"))
+        st["consolidations"] = st.get("consolidations", 0) + 1
+        cj.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
         # ② 渲染人读的脸: 蒸馏概念页 + 记来源 + 写札记
         distill(koan)
         record_sources(koan)

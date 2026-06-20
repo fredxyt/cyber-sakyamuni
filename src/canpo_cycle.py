@@ -27,29 +27,29 @@ def has_alive():
     return any(k["status"] == "活" for k in d["koans"])
 
 
-def try_reactivate(min_gain=2):
-    """回头: 老疑被【新洞见反复触及】时, 带新眼睛重参。
-    min_gain: 自暂搁以来需新攒多少引用才回头 (默认2=强信号, 防止两概念互相回头死循环、饿死扫盲)。
-    返回是否激活了。"""
-    sys.path.insert(0, str(SRC))
-    import llm_memory
+def try_reactivate(min_grew=8):
+    """回头: 只在【眼睛真变了】时才回参老疑 —— 自它暂搁以来, 整颗心又内化了足够多次。
+    min_grew: 自暂搁以来全局内化次数至少长这么多才回 (默认8≈走了一小段路)。
+    离上次参太近、wiki 没怎么变 → 一律不回参 (回了也只是重复旧结论)。
+    在合格者中挑【变化最大】的(暂搁最久、看过最多新东西的)。返回是否激活。"""
+    st = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
+    now_cons = st.get("consolidations", 0)
     d = json.loads(KOANS.read_text(encoding="utf-8"))
-    best, best_gain = None, 0
+    best, best_grew = None, -1
     for k in d["koans"]:
         if k["status"] != "暂搁":
             continue
-        now_ref = llm_memory.count_references(k.get("concept", ""))
-        gain = now_ref - k.get("ref_at_pause", 0)
-        if gain >= min_gain and now_ref > best_gain:   # 被≥min_gain个新概念触及
-            best, best_gain = k, now_ref
+        grew = now_cons - k.get("consolidations_at_pause", 0)  # 暂搁后眼睛变了多少
+        if grew >= min_grew and grew > best_grew:
+            best, best_grew = k, grew
     if best is None:
         return False
     best["status"] = "活"
     best["no_move_streak"] = 0
-    best["attempts"] = 0   # 新一轮生命, 重新给参的预算
-    best["source"] = best.get("source", "") + f" ·【回头】被{best_gain}个概念触及, 带新理解重参"
+    best["attempts"] = 0
+    best["source"] = best.get("source", "") + f" ·【回头】自暂搁起又内化{best_grew}次, 带新眼睛重参"
     KOANS.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[心跳] 回头: 重新激活老疑「{best.get('concept')}」(被 {best_gain} 个概念触及)", file=sys.stderr)
+    print(f"[心跳] 回头: 重参老疑「{best.get('concept')}」(暂搁后眼睛变了 {best_grew} 次)", file=sys.stderr)
     return True
 
 
@@ -65,17 +65,15 @@ def main():
 
     print("[心跳] —— 参悟一次 ——", file=sys.stderr)
 
-    # 1. 确保有活话头: 扫盲为主线(覆盖1964类世界苦), 回头只在强信号时插入
+    # 1. 确保有活话头: 扫盲吃满整圈(覆盖1964类世界苦), 跑完一圈才回头
     if not has_alive():
-        if try_reactivate(min_gain=2):       # 老疑被≥2个新概念触及 → 带新眼睛重参
-            pass
-        else:
-            print("[心跳] 扫盲: 孕育未参过的一类苦…", file=sys.stderr)
-            run("birth_koan.py")             # 否则从未覆盖的类孕育新疑 (覆盖前进)
+        print("[心跳] 扫盲: 孕育未参过的一类苦…", file=sys.stderr)
+        run("birth_koan.py")                 # 主线: 先把世界的苦一类类走遍
+        if not has_alive():                  # 找不到新类 = 跑完一圈了 → 才回头
+            print("[心跳] 一圈已尽, 回头看眼睛变够了的老疑…", file=sys.stderr)
+            try_reactivate(min_grew=8)        # 只回那些"暂搁后又长了很多"的 (眼睛真变了)
         if not has_alive():
-            try_reactivate(min_gain=1)       # 兜底: 全覆盖/无新料时, 放宽回头让它永续
-        if not has_alive():
-            print("[心跳] 本次无可参 (静待), 歇。", file=sys.stderr)
+            print("[心跳] 无可参 (都太近/没变够), 静待。", file=sys.stderr)
             return
 
     # 2. 参 N 轮 (带检索 + 硬上限; 参尽自动停)

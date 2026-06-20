@@ -265,8 +265,9 @@ def main():
         # 证: 一个话头转暂搁/已证时, 收成 —— 内化 + 蒸馏 + 札记
         if koan["status"] in ("暂搁", "已证"):
             realize_mod.realize(koan)
-            # 回头机制: 记下此刻"被引用数", 日后新引用攒够才重新激活 (带新眼睛)
-            koan["ref_at_pause"] = llm_memory.count_references(koan.get("concept", "空"))
+            # 回头闸: 记下此刻的内化次数(眼睛基线)。日后必须又内化够多(眼睛真变了)才回参。
+            st = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
+            koan["consolidations_at_pause"] = st.get("consolidations", 0)
 
         save_koans(koans)
         time.sleep(args.sleep)
