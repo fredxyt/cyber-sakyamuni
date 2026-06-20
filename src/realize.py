@@ -101,19 +101,15 @@ def write_note(koan):
 
 
 def realize(koan):
-    """暂搁时的"证": 蒸馏 + 记来源 + 写札记 + 写回 Neo4j(隔离标签)。"""
+    """暂搁时的"证": 先内化进内在记忆(LLM wiki, 复利在此), 再渲染人读的脸。
+    决策A: 不写回 P2 的 Neo4j —— 它的领悟留在自己的世界, 不污染大德语料池。"""
     try:
-        understanding = distill(koan)
+        # ① 内化进内在记忆 (LLM wiki, 交叉引用) —— 反哺自己的复利层
+        import llm_memory
+        llm_memory.consolidate(koan, _history_text(koan))
+        # ② 渲染人读的脸: 蒸馏概念页 + 记来源 + 写札记
+        distill(koan)
         record_sources(koan)
         write_note(koan)
-        # 证·写回: 把蒸馏的理解嵌入写回 Neo4j (隔离标签 CanpoRealization, P2 暂看不见)
-        if understanding:
-            try:
-                import neo4j_io, json as _json
-                st = _json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
-                neo4j_io.write_realization(koan.get("concept", "空"), understanding, st.get("cycle", 0))
-                print(f"     ↑ 洞见写回 Neo4j (隔离标签, 待验证 golive)", file=sys.stderr)
-            except Exception as we:
-                print(f"     (写回跳过: {str(we)[:60]})", file=sys.stderr)
     except Exception as e:
         print(f"     (证·收成出错: {str(e)[:80]})", file=sys.stderr)

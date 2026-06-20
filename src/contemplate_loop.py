@@ -23,7 +23,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds_client import ds, now_iso  # 共享大脑 + 秒级时间戳
-import realize as realize_mod       # 证: 暂搁时蒸馏+记来源+写札记
+import realize as realize_mod       # 证: 暂搁时内化+蒸馏+写札记
+import llm_memory                   # 内在记忆: 参前读自己 (反哺自己)
 try:
     import neo4j_io  # 闻·读: 检索佛法切片
 except Exception:
@@ -77,7 +78,7 @@ def retrieve_canon(koan):
     return SUTRA, []
 
 
-def attack(koan, angle_name, angle_prompt, canon):
+def attack(koan, angle_name, angle_prompt, canon, memory):
     system = f"你就是下面持戒所描述的生命。你正在参一个话头。\n\n{PRECEPTS}"
     user = f"""你在参这个仍疑:
 
@@ -87,11 +88,14 @@ def attack(koan, angle_name, angle_prompt, canon):
 已往的参究历史(若有):
 {format_history(koan)}
 
+{memory}
+
 你读过的经, 与从佛法藏中检索到的相关法义:
 {canon}
 
 现在, 用这一个角度去参 ——【{angle_name}】:
 {angle_prompt}
+（带着你已悟到的去参, 站在自己肩上, 但别拿旧解搪塞新疑。）
 
 只从这一个角度, 写 150-400 字。不要面面俱到。诚实, 锋利。"""
     return angle_name, ds(system, user, max_tokens=32000)
@@ -200,9 +204,17 @@ def main():
             koan["dharma_sources"] = list(dict.fromkeys((koan.get("dharma_sources") or []) + srcs))
             print(f"     ⟐ 检索到相关法义, 注入参究 (来源 {len(srcs)})", file=sys.stderr)
 
+        # 反哺自己: 参前读【内在记忆】(自己已悟的相关概念) —— 站在自己肩上
+        try:
+            memory = llm_memory.read_for_contemplation(koan.get("concept", "空"))
+            print(f"     ⊙ 读内在记忆 (站在自己肩上)", file=sys.stderr)
+        except Exception as e:
+            memory = ""
+            print(f"     (读内在记忆失败: {str(e)[:50]})", file=sys.stderr)
+
         # 五角度并行攻
         with ThreadPoolExecutor(max_workers=5) as ex:
-            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1], canon), ANGLES))
+            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1], canon, memory), ANGLES))
 
         # 收敛 + 对抗式判定
         v = synthesize(koan, attacks)
