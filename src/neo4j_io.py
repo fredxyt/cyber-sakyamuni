@@ -33,11 +33,19 @@ def _sh(remote_cmd: str, timeout: int = 180):
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
 
 
+def _neo4j_password() -> str:
+    """密码从环境变量读 (不入库)。本地: export NEO4J_PASSWORD; 服务器: source .env.deepseek。"""
+    pw = os.environ.get("NEO4J_PASSWORD") or NEO.get("password", "")
+    if not pw:
+        raise RuntimeError("NEO4J_PASSWORD 未设置 (source .env.deepseek 或 export)")
+    return pw
+
+
 def _cypher(query: str) -> str:
     """跑一句 cypher (docker exec cypher-shell), 返回 plain 文本。"""
     remote = (
         f'docker exec {NEO["container"]} cypher-shell '
-        f'-u {NEO["user"]} -p {NEO["password"]} "{query}" --format plain'
+        f'-u {NEO["user"]} -p {_neo4j_password()} "{query}" --format plain'
     )
     out = _sh(remote, timeout=120)
     if out.returncode != 0:

@@ -17,11 +17,10 @@
     "金刚经": "not_started"
   },
   "neo4j": {
-    "_comment": "世界输入源（只读）。fdz2025 的生产 Neo4j。",
+    "_comment": "世界输入源（只读）。连接密码从环境变量 NEO4J_PASSWORD 读（见 .env.deepseek，不入库）。",
     "host": "44.237.28.178",
     "ssh_key": "../fdz2025/depolyment/fdz.pem",
     "container": "neo4j-bodhi",
-    "user": "neo4j",
-    "password": "***REDACTED***"
+    "user": "neo4j"
   }
 }
