@@ -1,0 +1,41 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# ============================================================
+# fdz2025 每日自动化管线
+# ============================================================
+
+# Token Refresh: YouTube API - 每周一 UTC 12:00 (PST 04:00 AM)
+0 12 * * 1 cd /home/ubuntu/fdz2025 && source .venv/bin/activate && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_refresh_token.sh >> logs/cron_token_$(date +\%Y\%m\%d).log 2>&1
+
+# Pipeline 3a: 视频生成 - 每天 UTC 02:00 (台湾 10:00 上午) - 3个
+0 2 * * * cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.replicate && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_hotspot_video.sh --count 1 >> logs/cron_video_$(date +\%Y\%m\%d)_a.log 2>&1
+
+# Pipeline 3b: 视频生成 - 每天 UTC 07:00 (台湾 15:00 下午) - 2个
+# [DISABLED 2026-05-11] 0 7 * * * cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.replicate && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_hotspot_video.sh --count 2 >> logs/cron_video_$(date +\%Y\%m\%d)_b.log 2>&1
+
+# Pipeline 3c: 视频生成 - 每天 UTC 11:30 (台湾 19:30 傍晚高峰) - 3个
+# [DISABLED 2026-05-11] 30 11 * * * cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.replicate && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_hotspot_video.sh --count 1 >> logs/cron_video_$(date +\%Y\%m\%d)_c.log 2>&1
+
+# Pipeline 3d: 视频生成 - 每天 UTC 16:00 (台湾 00:00 深夜) - 2个
+# [DISABLED 2026-05-11] 0 16 * * * cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.replicate && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_hotspot_video.sh --count 2 >> logs/cron_video_$(date +\%Y\%m\%d)_d.log 2>&1
+
+# Pipeline 2: ACE 训练 - 周一到周六 UTC 18:30 (PST 10:30 AM)
+30 18 * * 1-6 cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.gemini && source .env.neo4j && source .env.newapi && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_ace_training.sh >> logs/cron_ace_$(date +\%Y\%m\%d).log 2>&1
+
+# Pipeline 1: 文章采集 - 周日 UTC 18:30 (PST 10:30 AM)
+30 18 * * 0 cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.gemini && source .env.neo4j && source .env.newapi && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_articles_to_neo4j.sh >> logs/cron_articles_$(date +\%Y\%m\%d).log 2>&1
+
+# Pipeline 4: EPUB 生成 - 每两周周日 UTC 20:00
+# [DISABLED 2026-04-29] 0 20 * * 0 [ $(( 10#$(date +\%U) \% 2 )) -eq 0 ] && cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.gemini && source .env.newapi && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_artbook_epub.sh >> logs/cron_epub_$(date +\%Y\%m\%d).log 2>&1
+
+# Pipeline 5: 卷视频合集 - 每两周周日 UTC 21:00
+# [DISABLED 2026-04-29] 0 21 * * 0 [ $(( 10#$(date +\%U) \% 2 )) -eq 0 ] && cd /home/ubuntu/fdz2025 && source .venv/bin/activate && source .env.newapi && export PYTHONPATH=/home/ubuntu/fdz2025 && ./scripts/cron_volume_compilation.sh --latest >> logs/cron_compilation_$(date +\%Y\%m\%d).log 2>&1
+
+
+# 永动参悟守护 (cyber-sakyamuni) — 每15min: daemon 没在跑就拉起。daemon 自己串行不停。
+
+# 永动参悟 (cyber-sakyamuni) — 每10分钟一批, flock 锁串行不重叠。串行不停, 回头, 永不做完。
+*/10 * * * * cd /home/ubuntu/cyber-sakyamuni && /usr/bin/flock -n /tmp/canpo.lock bash cron_canpo.sh 4 >> logs/cron_canpo_$(date +\%Y\%m\%d).log 2>&1
+# 每日札记 (产品b) — 每天 UTC 23:00 把当天修行策展成今日一篇
+0 23 * * * cd /home/ubuntu/cyber-sakyamuni && /usr/bin/flock /tmp/canpo.lock bash cron_daily.sh >> logs/cron_daily_$(date +\%Y\%m\%d).log 2>&1
