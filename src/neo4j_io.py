@@ -53,13 +53,29 @@ def read_new_suffering(since_iso: str, limit: int = 60):
 
 # ── 闻: GraphRAG 检索佛法切片 (充分利用 P1 的 154k chunk) ──
 def retrieve_dharma(query_text: str, k: int = 5):
-    """给一个疑, 检索最相关的佛法 chunk。
-    需要 embedding 向量检索 (Neo4j 有 chunk embedding + vector index)。
-    复用 fdz2025 的 embedding (gemini-embedding-001)。
+    """给一个疑, GraphRAG 检索最相关的佛法 chunk (充分利用 P1 的 154k 切片)。
+    在服务器上跑 (embedding + Neo4j 都在那), 复用 fdz2025 的向量索引。
+    返回 [{text, summary, score}, ...]。
     """
-    # TODO(②证之前先通①): embed(query) → Neo4j vector index 检索 chunk
-    # 当前先留接口; 接通 fdz2025 的 GraphRAGQuery / 向量索引后填实。
-    raise NotImplementedError("retrieve_dharma: 待接 fdz2025 向量检索")
+    q = query_text.replace('"', "'").replace("\n", " ")[:300]
+    remote = (
+        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
+        "source .env.gemini && source .env.neo4j && "
+        "export PYTHONPATH=/home/ubuntu/fdz2025 && "
+        f'python scripts/tools/dharma_retrieve.py "{q}" {k}'
+    )
+    out = subprocess.run(
+        ["ssh", "-i", str(KEY), f'ubuntu@{NEO["host"]}', remote],
+        capture_output=True, text=True, timeout=180,
+    )
+    if out.returncode != 0:
+        raise RuntimeError(f"检索失败: {out.stderr[:300]}")
+    # 末行才是 JSON (前面可能有 venv/source 噪音)
+    for line in reversed(out.stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("["):
+            return json.loads(line)
+    return []
 
 
 # ── 证: 洞见写回 Neo4j (让 P2/P3 用上参悟成果) ──

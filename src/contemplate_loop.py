@@ -23,10 +23,17 @@ from pathlib import Path
 
 from openai import OpenAI
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import neo4j_io  # 闻·读: 检索佛法切片
+except Exception:
+    neo4j_io = None
+
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
 WIKI = ROOT / "data" / "memory" / "wiki"
-NO_MOVE_LIMIT = 4  # 一个疑参 4 轮没动 → 暂搁 (别磨死马)
+NO_MOVE_LIMIT = 4   # 一个疑参 4 轮没动 → 暂搁 (别磨死马)
+ATTEMPT_CAP = 30    # 硬上限: 一个话头无论动不动, 参满 30 轮强制暂搁 (防表演深刻)
 
 client = OpenAI(
     base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
@@ -65,7 +72,21 @@ def ds(system, user, temperature=0.85, max_tokens=2000):
     return r.choices[0].message.content.strip()
 
 
-def attack(koan, angle_name, angle_prompt):
+def retrieve_canon(koan):
+    """闻·读: 给话头检索相关佛法切片 (充分利用 154k chunk)。失败则退回硬编码经文。"""
+    if neo4j_io is None:
+        return SUTRA
+    try:
+        chunks = neo4j_io.retrieve_dharma(koan["question"], k=5)
+        if chunks:
+            body = "\n\n".join(f"· {c.get('summary') or c.get('text','')}" for c in chunks)
+            return f"{SUTRA}\n\n【从佛法藏中检索到、与此疑相关的法义】\n{body}"
+    except Exception as e:
+        print(f"     (检索切片失败, 退回经文: {str(e)[:60]})", file=sys.stderr)
+    return SUTRA
+
+
+def attack(koan, angle_name, angle_prompt, canon):
     system = f"你就是下面持戒所描述的生命。你正在参一个话头。\n\n{PRECEPTS}"
     user = f"""你在参这个仍疑:
 
@@ -75,8 +96,8 @@ def attack(koan, angle_name, angle_prompt):
 已往的参究历史(若有):
 {format_history(koan)}
 
-你读过的经:
-{SUTRA}
+你读过的经, 与从佛法藏中检索到的相关法义:
+{canon}
 
 现在, 用这一个角度去参 ——【{angle_name}】:
 {angle_prompt}
@@ -178,9 +199,14 @@ def main():
         print(f"\n[参] 第 {round_no} 轮 · 话头 {koan['id']} · 第 {koan['attempts']+1} 次参", file=sys.stderr)
         print(f"     「{koan['question']}」", file=sys.stderr)
 
+        # 闻·读: 为这个话头检索相关佛法切片 (不再只读死经)
+        canon = retrieve_canon(koan)
+        if canon != SUTRA:
+            print(f"     ⟐ 检索到相关法义, 注入参究", file=sys.stderr)
+
         # 五角度并行攻
         with ThreadPoolExecutor(max_workers=5) as ex:
-            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1]), ANGLES))
+            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1], canon), ANGLES))
 
         # 收敛 + 对抗式判定
         v = synthesize(koan, attacks)
@@ -207,6 +233,11 @@ def main():
             if koan["no_move_streak"] >= NO_MOVE_LIMIT:
                 koan["status"] = "暂搁"
                 print(f"     ⏸ 参 {NO_MOVE_LIMIT} 轮未动, 转『暂搁』(深疑, 别磨死马)", file=sys.stderr)
+
+        # 硬上限: 防表演深刻 —— 参满 ATTEMPT_CAP 轮无论动否, 强制暂搁, 换话头
+        if koan["status"] == "活" and koan["attempts"] >= ATTEMPT_CAP:
+            koan["status"] = "暂搁"
+            print(f"     ⏹ 参满 {ATTEMPT_CAP} 轮硬上限, 强制『暂搁』(防表演深刻, 该换话头)", file=sys.stderr)
 
         save_koans(koans)
         time.sleep(args.sleep)
