@@ -40,8 +40,9 @@ flock -n 9 || { echo "[$(date -u +%FT%TZ)] 上一跳还在跑, 跳过。" >> "$L
       git rebase --abort 2>/dev/null
       echo "[$(date -u +%H:%M:%SZ)] rebase 失败已 abort。"
     fi
-    git push -q origin master 2>&1 | tail -1 && echo "[$(date -u +%H:%M:%SZ)] pushed." \
-      || echo "[$(date -u +%H:%M:%SZ)] ⚠ push 失败, 下跳重试。"
+    # 直接取 git push 退出码 (不经管道, 否则 tail 的成功会掩盖 push 失败 → 误报 pushed)
+    if git push -q origin master 2>>"$LOG"; then echo "[$(date -u +%H:%M:%SZ)] pushed."
+    else echo "[$(date -u +%H:%M:%SZ)] ⚠ push 失败(可能含拦截), 下跳重试。"; fi
   else
     echo "[$(date -u +%H:%M:%SZ)] 无变更 (参尽或歇)。"
   fi

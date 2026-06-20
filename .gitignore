@@ -9,3 +9,4 @@ data/sources/*.raw
 .env.canpo
 *.pem
 data/state/cov_emb.json
+logs/
