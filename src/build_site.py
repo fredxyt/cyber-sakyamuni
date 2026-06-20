@@ -125,9 +125,14 @@ def main():
         if isinstance(sources, str):
             sources = [sources]
         wt = parse_wrong_turns(section(body, "我走过的弯路"))
+        def _ts(w):
+            m = re.search(r"（([^）]+)）", w.get("label", ""))
+            return m.group(1) if m else ""
+        wt.sort(key=_ts)   # 按秒级时间戳升序, 困惑史正序(一天多层, 防文档错位)
         for i, w in enumerate(wt):   # 层号连续化(原是参轮号, 跳未动轮看着像断裂)
-            dm = re.search(r"（([^）]+)）", w.get("label", ""))
-            w["label"] = f"第 {i + 1} 层" + (f" · {dm.group(1)[:10]}" if dm else "")
+            ts = _ts(w)              # 完整秒级戳, 不再 [:10] 截到天 —— 一天多层要分得清时分秒
+            disp = ts.replace("T", " ").replace("Z", " UTC") if "T" in ts else ts
+            w["label"] = f"第 {i + 1} 层" + (f" · {disp}" if ts else "")
         concepts.append({
             "name": f.stem,
             "status": fm.get("status") or _koan_status.get(f.stem, "仍疑"),
