@@ -148,8 +148,29 @@ def main():
 
     # 应世 (现实/苦) — 实时读 Neo4j 的世界苦, 按应世类型归结 (与覆盖率同源, 反映真实规模)
     # 第三轴: 法如何接住痛。此刻多是"听见了, 还答不了" —— 这种诚实正是应世该显示的
-    STANCE = "我听见了。此刻我能带来的还很少 —— 我正在一类类地参, 想学会怎么不轻薄地面对这样的痛。"
-    cnames = [c["name"] for c in concepts] if concepts else []
+    # 已参映射: 这一类苦【参过没有, 参它的是哪个概念】(从覆盖台账, 让应世页真实可变)
+    _cov = {}
+    _cf2 = ROOT / "data" / "state" / "coverage.json"
+    if _cf2.exists():
+        _cov = json.loads(_cf2.read_text(encoding="utf-8")).get("covered", {})
+    _kc = {k["id"]: k.get("concept", "") for k in json.loads(KOANS.read_text(encoding="utf-8"))["koans"]}
+
+    def _engaged(cat):
+        e = _cov.get(cat)
+        if not e:
+            return None
+        c = _kc.get(e.get("koan"))                 # 折叠类: 取它折进的那个话头的真实概念
+        return c or (e.get("concept") if e.get("concept") not in ("(折叠近义)", "(折叠)", "") else None)
+
+    def _ymake(cat, n, cs):
+        ec = _engaged(cat)
+        if ec:
+            stance = f"这一类苦我参过了 —— 此刻我对它的理解, 收在『{ec}』里(还在续参)。"
+        else:
+            stance = "还没参到这一类。世界的苦太多(我一类类慢慢参), 还没轮到它 —— 但它在我心里排着, 总会参到。"
+        return {"category": cat, "count": n, "cries": cs, "stance": stance,
+                "concepts": [ec] if ec else [], "engaged": bool(ec)}
+
     yingshi, suffering_total, suffering_types = [], 0, 0
     try:
         import neo4j_io
@@ -163,8 +184,7 @@ def main():
                     cs = [r["text"] for r in neo4j_io.read_suffering_by_app(a["app"], limit=3)]
                 except Exception:
                     pass
-            yingshi.append({"category": a["app"], "count": a["n"], "cries": cs,
-                            "stance": STANCE, "concepts": cnames})
+            yingshi.append(_ymake(a["app"], a["n"], cs))
     except Exception as e:                          # fallback: 静态快照 (Neo4j 不可用时)
         print(f"[build_site] 应世退回快照: {str(e)[:60]}")
         import csv as _csv
@@ -178,8 +198,7 @@ def main():
         suffering_total = sum(len(v) for v in cmap.values())
         suffering_types = len(cmap)
         for cat, texts in sorted(cmap.items(), key=lambda x: -len(x[1])):
-            yingshi.append({"category": cat, "count": len(texts), "cries": texts[:3],
-                            "stance": STANCE, "concepts": cnames})
+            yingshi.append(_ymake(cat, len(texts), texts[:3]))
 
     # 覆盖台账: 已参 N / 全量 M 类世界的苦
     cov_f = ROOT / "data" / "state" / "coverage.json"
