@@ -89,7 +89,9 @@ def main():
         date_m = re.match(r"(\d{4}-\d{2}-\d{2})", f.stem)
         date = (dm.group(1) if dm else date_m.group(1)) if (dm or date_m) else ""
         title = re.sub(r"^今日札记[:：·]\s*", "", first_heading(md))  # 去冗余前缀
-        exc = excerpt(re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE), 100)
+        _clean = re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE)
+        _clean = re.sub(r"^\s*\*.*?\*\s*$", "", _clean, flags=re.MULTILINE)  # 去 *今日·…* / *参「X」之后* 副标题
+        exc = excerpt(_clean, 100)
         entry = {"id": f.stem, "date": date, "title": title, "markdown": md, "excerpt": exc}
         if is_daily:
             chronicle.append({**entry, "kind": "daily", "when": date, "cycle": None,
