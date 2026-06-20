@@ -27,9 +27,10 @@ def has_alive():
     return any(k["status"] == "活" for k in d["koans"])
 
 
-def try_reactivate():
-    """回头: 没有活话头时, 看老疑里有没有【被新洞见反复触及】的 —— 带新眼睛重参。
-    只有自暂搁以来【新攒了引用】才回头 (意义驱动, 不空转)。返回是否激活了。"""
+def try_reactivate(min_gain=2):
+    """回头: 老疑被【新洞见反复触及】时, 带新眼睛重参。
+    min_gain: 自暂搁以来需新攒多少引用才回头 (默认2=强信号, 防止两概念互相回头死循环、饿死扫盲)。
+    返回是否激活了。"""
     sys.path.insert(0, str(SRC))
     import llm_memory
     d = json.loads(KOANS.read_text(encoding="utf-8"))
@@ -39,7 +40,7 @@ def try_reactivate():
             continue
         now_ref = llm_memory.count_references(k.get("concept", ""))
         gain = now_ref - k.get("ref_at_pause", 0)
-        if gain >= 1 and now_ref > best_gain:   # 自暂搁后又被别的概念引用过
+        if gain >= min_gain and now_ref > best_gain:   # 被≥min_gain个新概念触及
             best, best_gain = k, now_ref
     if best is None:
         return False
@@ -64,15 +65,17 @@ def main():
 
     print("[心跳] —— 参悟一次 ——", file=sys.stderr)
 
-    # 1. 确保有活话头: 先回头(老疑被新洞见触及), 否则从世界孕育新疑
+    # 1. 确保有活话头: 扫盲为主线(覆盖1964类世界苦), 回头只在强信号时插入
     if not has_alive():
-        if try_reactivate():
-            pass  # 回头成功, 重参老疑
+        if try_reactivate(min_gain=2):       # 老疑被≥2个新概念触及 → 带新眼睛重参
+            pass
         else:
-            print("[心跳] 无活话头, 孕育新疑…", file=sys.stderr)
-            run("birth_koan.py")
+            print("[心跳] 扫盲: 孕育未参过的一类苦…", file=sys.stderr)
+            run("birth_koan.py")             # 否则从未覆盖的类孕育新疑 (覆盖前进)
         if not has_alive():
-            print("[心跳] 孕育未成 (世界暂无新料?), 本次歇。", file=sys.stderr)
+            try_reactivate(min_gain=1)       # 兜底: 全覆盖/无新料时, 放宽回头让它永续
+        if not has_alive():
+            print("[心跳] 本次无可参 (静待), 歇。", file=sys.stderr)
             return
 
     # 2. 参 N 轮 (带检索 + 硬上限; 参尽自动停)
