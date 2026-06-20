@@ -69,6 +69,36 @@ def read_new_suffering(since_iso: str, limit: int = 60):
     return rows
 
 
+# ── 闻: 列出所有应世类型(覆盖的单元) + 按类型取苦 ──
+def list_applications():
+    """P2 给每个 Question 打的应世类型 + 各自数量。这是【覆盖单元】(有限、有意义)。"""
+    q = ("MATCH (q:Question) WHERE q.application IS NOT NULL "
+         "RETURN q.application AS app, count(*) AS n ORDER BY n DESC")
+    out = []
+    for line in _cypher(q).splitlines()[1:]:
+        p = _split_plain(line)
+        if len(p) >= 2 and p[0]:
+            try:
+                out.append({"app": p[0], "n": int(p[1])})
+            except ValueError:
+                pass
+    return out
+
+
+def read_suffering_by_app(app, limit=10):
+    """取某一类苦的真实问题 (提炼话头用)。"""
+    a = app.replace('"', "'")
+    q = (f'MATCH (q:Question) WHERE q.application = "{a}" '
+         f'RETURN toString(q.created_at) AS ts, q.application AS app, q.text AS text '
+         f'ORDER BY q.created_at DESC LIMIT {limit}')
+    rows = []
+    for line in _cypher(q).splitlines()[1:]:
+        p = _split_plain(line)
+        if len(p) >= 3:
+            rows.append({"ts": p[0], "app": p[1], "text": p[2]})
+    return rows
+
+
 # ── 闻: GraphRAG 检索佛法切片 (充分利用 P1 的 154k chunk) ──
 def retrieve_dharma(query_text: str, k: int = 5):
     """给一个疑, GraphRAG 检索最相关的佛法 chunk (充分利用 P1 的 154k 切片)。

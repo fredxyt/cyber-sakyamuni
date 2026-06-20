@@ -80,20 +80,23 @@ def main():
     for f in BLOG.glob("*.md"):
         md = f.read_text(encoding="utf-8")
         m = re.search(r"cycle(\d+)", f.stem)
-        # 秒级戳 2026-06-20T01-12-30Z → 日期 + 时间; 旧的 2026-06-19-cycle1 → 仅日期
+        is_daily = f.stem.startswith("daily-")   # 今日(产品) vs 片刻(原始)
+        # 今日: daily-2026-06-20; 片刻秒级: 2026-06-20T01-12-30Z; 诞生: 2026-06-19-cycle1
+        dm = re.match(r"daily-(\d{4}-\d{2}-\d{2})", f.stem)
         tm = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})", f.stem)
         date_m = re.match(r"(\d{4}-\d{2}-\d{2})", f.stem)
-        date = date_m.group(1) if date_m else ""
-        when = f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date
+        date = (dm.group(1) if dm else date_m.group(1)) if (dm or date_m) else ""
+        when = (date if is_daily else (f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date))
         chronicle.append({
-            "id": f.stem, "sort": f.stem,
+            "id": f.stem, "sort": (date + "~daily") if is_daily else f.stem,  # 同日今日排片刻之上
+            "kind": "daily" if is_daily else "moment",
             "date": date, "when": when,
             "cycle": int(m.group(1)) if m else None,
             "title": first_heading(md),
             "markdown": md,
             "excerpt": excerpt(re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE), 100),
         })
-    chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 新札记在前
+    chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 新的在前; 同日今日在片刻上
 
     # 概念 (义理门) — 带困惑史
     concepts = []
@@ -143,6 +146,13 @@ def main():
             "concepts": [c["name"] for c in concepts] if concepts else [],
         })
 
+    # 覆盖台账: 已参 N / 全量 M 类世界的苦
+    cov_f = ROOT / "data" / "state" / "coverage.json"
+    coverage = {"covered": 0, "total": 0}
+    if cov_f.exists():
+        cd = json.loads(cov_f.read_text(encoding="utf-8"))
+        coverage = {"covered": len(cd.get("covered", {})), "total": cd.get("total_types", 0)}
+
     # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
     origin_f = ROOT / "data" / "memory" / "origin.md"
     origin = origin_f.read_text(encoding="utf-8") if origin_f.exists() else ""
@@ -157,6 +167,7 @@ def main():
             "cycle": STATE.get("cycle", 0),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "counts": {"chronicle": len(chronicle), "concepts": len(concepts), "koans": len(koans)},
+            "coverage": coverage,
         },
         "chronicle": chronicle,
         "concepts": concepts,
