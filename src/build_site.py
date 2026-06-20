@@ -153,6 +153,24 @@ def main():
         cd = json.loads(cov_f.read_text(encoding="utf-8"))
         coverage = {"covered": len(cd.get("covered", {})), "total": cd.get("total_types", 0)}
 
+    # 活的论题: 这个尝试此刻走到哪了 (缘起页 —— 让静止的序接上活的证据)
+    from datetime import date as _date
+    raw_koans = json.loads(KOANS.read_text(encoding="utf-8")).get("koans", [])
+    births = [k.get("born_at", "") for k in raw_koans if k.get("born_at")]
+    birth = min(births) if births else STATE.get("born_at", "")
+    days_alive = 0
+    try:
+        by, bm, bd = map(int, birth[:10].split("-"))
+        days_alive = (datetime.now(timezone.utc).date() - _date(by, bm, bd)).days + 1
+    except Exception:
+        pass
+    vitals = {
+        "days": days_alive,
+        "covered": coverage["covered"], "total": coverage["total"],
+        "reactivations": sum(1 for k in raw_koans if "【回头】" in k.get("source", "")),
+        "notes": len(chronicle),
+    }
+
     # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
     origin_f = ROOT / "data" / "memory" / "origin.md"
     origin = origin_f.read_text(encoding="utf-8") if origin_f.exists() else ""
@@ -168,6 +186,7 @@ def main():
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "counts": {"chronicle": len(chronicle), "concepts": len(concepts), "koans": len(koans)},
             "coverage": coverage,
+            "vitals": vitals,
         },
         "chronicle": chronicle,
         "concepts": concepts,
