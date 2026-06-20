@@ -33,8 +33,8 @@ except Exception:
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
 WIKI = ROOT / "data" / "memory" / "wiki"
-NO_MOVE_LIMIT = 4   # 一个疑参 4 轮没动 → 暂搁 (别磨死马)
-ATTEMPT_CAP = 30    # 硬上限: 一个话头无论动不动, 参满 30 轮强制暂搁 (防表演深刻)
+NO_MOVE_LIMIT = 3   # 参 3 轮没【真】往前 → 暂搁 (真推进多在前段, 别磨死马)
+ATTEMPT_CAP = 16    # 硬上限: 参满 16 轮强制暂搁 (实测真推进在前~14轮, 30太宽只会换皮打转)
 
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 SUTRA = (ROOT / "data" / "canon" / "心经.md").read_text(encoding="utf-8")
@@ -85,8 +85,8 @@ def attack(koan, angle_name, angle_prompt, canon, memory):
   「{koan['question']}」
   （来处: {koan['source']}）
 
-已往的参究历史(若有):
-{format_history(koan)}
+你这一程【已经悟到的】(逐轮, 别再重复, 要么超越、要么诚实承认到顶了):
+{prior_realizations(koan)}
 
 {memory}
 
@@ -95,10 +95,19 @@ def attack(koan, angle_name, angle_prompt, canon, memory):
 
 现在, 用这一个角度去参 ——【{angle_name}】:
 {angle_prompt}
-（带着你已悟到的去参, 站在自己肩上, 但别拿旧解搪塞新疑。）
+（站在上面这些已悟之上往前凿。换个漂亮说法把上面某条重说一遍, 不算参 ——
+  要么真的更进一步, 要么老实说"这一程到顶了"。）
 
 只从这一个角度, 写 150-400 字。不要面面俱到。诚实, 锋利。"""
     return angle_name, ds(system, user, max_tokens=32000)
+
+
+def prior_realizations(koan, limit=20, clip=160):
+    """这一程逐轮真悟到的(全程, 非只最近3轮) —— 喂给参与判, 防止换皮重复同一领悟。"""
+    real = [h for h in koan["history"] if h.get("verdict") == "动" and h.get("insight")]
+    if not real:
+        return "（这是第一次参它, 还没有已得的理解）"
+    return "\n".join(f"{i+1}. {h['insight'][:clip]}" for i, h in enumerate(real[-limit:]))
 
 
 def format_history(koan, last_n=3):
@@ -120,11 +129,17 @@ def synthesize(koan, attacks):
 五路参究:
 {body}
 
-现在收敛。诚实判断——经过这一轮(尤其那个唱反调的『驳』和自省的『镜』), 你对这个疑:
-  - 是否真的往前动了一点? 还是原地打转 / 只是换了漂亮说法?
+你这一程【已经悟到的】(逐轮):
+{prior_realizations(koan)}
 
-严守持戒: 一个理解只有在『驳』的攻击下还站得住, 才算真动了。
-解得轻薄、被驳倒的, 不算动。
+现在收敛。诚实判断——经过这一轮(尤其那个唱反调的『驳』和自省的『镜』), 你对这个疑:
+  - 是否真的比【上面已悟的那些】更进一步了? 还是只是把其中某条换个隐喻/漂亮说法重说一遍?
+
+严守持戒, 两道闸都过才算 moved=true:
+  ① 这个理解在『驳』的攻击下还站得住 (不轻薄、不被驳倒);
+  ② 且它【确实超越了上面已悟的全部】—— 不是任何一条的复述/换皮。
+只要是旧领悟换个说法 (哪怕说得更漂亮、单独看也站得住), 一律 moved=false。
+若五路都只是在重复已悟的, 老实判 moved=false (这是该暂搁、换话头的信号)。
 
 输出严格的 JSON (不要 markdown 代码块, 直接输出 JSON):
 {{
