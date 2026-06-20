@@ -8,3 +8,4 @@ data/sources/*.raw
 .env.deepseek
 .env.canpo
 *.pem
+logs/
