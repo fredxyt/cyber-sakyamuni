@@ -8,4 +8,4 @@ data/sources/*.raw
 .env.deepseek
 .env.canpo
 *.pem
-logs/
+data/state/cov_emb.json

@@ -24,13 +24,31 @@ KEY = (ROOT / NEO["ssh_key"]).resolve()
 ON_SERVER = os.environ.get("CANPO_ON_SERVER") == "1"
 
 
-def _sh(remote_cmd: str, timeout: int = 180):
-    """服务器上直接 bash 跑; 本地经 ssh 跑。"""
+def _sh(remote_cmd: str, timeout: int = 180, input_data: str = None):
+    """服务器上直接 bash 跑; 本地经 ssh 跑。input_data 经 stdin 传 (避开 shell 引号)。"""
     if ON_SERVER:
         argv = ["bash", "-lc", remote_cmd]
     else:
         argv = ["ssh", "-i", str(KEY), f'ubuntu@{NEO["host"]}', remote_cmd]
-    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, input=input_data)
+
+
+def embed(texts):
+    """文本 → gemini-embedding (3072维, 服务器上算, 复用 dharma 同一向量空间)。
+    返回 [[float,...], ...]。话头语义去重用。"""
+    remote = (
+        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
+        "source .env.gemini && export PYTHONPATH=/home/ubuntu/fdz2025 && "
+        "python scripts/tools/embed_text.py"
+    )
+    out = _sh(remote, timeout=180, input_data=json.dumps(texts))
+    if out.returncode != 0:
+        raise RuntimeError(f"嵌入失败: {out.stderr[:200]}")
+    for line in reversed(out.stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("["):
+            return json.loads(line)
+    return []
 
 
 def _neo4j_password() -> str:

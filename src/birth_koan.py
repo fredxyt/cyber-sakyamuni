@@ -8,6 +8,7 @@
 供 canpo_cycle / cron 在话头库空时调用。
 """
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -54,21 +55,76 @@ def pick_uncovered():
     return None
 
 
+# ── 语义去重: 近义的类不另起话头, 折叠进已有的 (1964类冗余 → 几百个真主题) ──
+COV_EMB = ROOT / "data" / "state" / "cov_emb.json"   # 已建话头类的嵌入(缓存, gitignore)
+SIM_THRESHOLD = 0.87   # 余弦≥此值 = 近义, 折叠不新建 (可调)
+
+
+def _load_cov_emb():
+    return json.loads(COV_EMB.read_text(encoding="utf-8")) if COV_EMB.exists() else {}
+
+
+def _save_cov_emb(d):
+    COV_EMB.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+
+
+def _cosine(a, b):
+    s = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a)); nb = math.sqrt(sum(y * y for y in b))
+    return s / (na * nb) if na and nb else 0.0
+
+
+def _fold(cat, near_app, sim):
+    """近义类折叠进已有话头: 该话头 apps 追加这一类, 标记已覆盖, 不新建。
+    日后这话头回头重参时, 新闻回灌会带上这些折叠类的苦。"""
+    koans = json.loads(KOANS.read_text(encoding="utf-8"))
+    kid = "?"
+    for k in koans["koans"]:
+        if k.get("app") == near_app or near_app in k.get("apps", []):
+            apps = k.setdefault("apps", [k["app"]] if k.get("app") else [])
+            if cat["app"] not in apps:
+                apps.append(cat["app"])
+            kid = k["id"]
+            break
+    KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
+    _mark_covered(cat["app"], kid, "(折叠近义)", cat["n"])
+    print(f"[孕育] 「{cat['app']}」≈「{near_app}」({sim:.2f}) → 折叠进 {kid}, 不新建", file=sys.stderr)
+
+
 def birth():
     koans = json.loads(KOANS.read_text(encoding="utf-8"))
     existing_q = {k["question"] for k in koans["koans"]}
+    cov_emb = _load_cov_emb()
 
-    # 扫盲式选题: 挑还没参过、苦量最大的一类
-    cat = pick_uncovered()
+    # 扫盲 + 语义去重: 跳过与已有话头近义的类(折叠它们), 找第一个【真正不同】的来 births
+    cat, emb = None, None
+    for _ in range(40):
+        c = pick_uncovered()
+        if c is None:
+            print(f"[孕育] 全部类世界苦已参过 (覆盖100%)。静待新类型/回头。", file=sys.stderr)
+            return None
+        try:
+            e = neo4j_io.embed([c["app"]])[0]
+        except Exception as ex:
+            print(f"[孕育] 嵌入失败, 跳过去重直接参: {str(ex)[:50]}", file=sys.stderr)
+            cat, emb = c, None
+            break
+        if cov_emb:
+            sim, near = max(((_cosine(e, ev), a) for a, ev in cov_emb.items()), key=lambda x: x[0])
+            if sim >= SIM_THRESHOLD:
+                _fold(c, near, sim)   # 近义 → 折叠, 试下一类
+                continue
+        cat, emb = c, e
+        break
     if cat is None:
-        all_apps = len(neo4j_io.list_applications())
-        print(f"[孕育] 全部 {all_apps} 类世界苦已参过 (覆盖100%)。静待新类型/回头。", file=sys.stderr)
+        print("[孕育] 连试40类皆近义已覆盖, 本次不新建 (世界暂无新主题)。", file=sys.stderr)
         return None
+
     suffering = neo4j_io.read_suffering_by_app(cat["app"], limit=10)
     if not suffering:
         print(f"[孕育] 类型「{cat['app']}」取不到问题, 跳过。", file=sys.stderr)
         return None
-    print(f"[孕育] 扫盲选中类型「{cat['app']}」({cat['n']} 声苦)", file=sys.stderr)
+    print(f"[孕育] 扫盲选中【新主题】「{cat['app']}」({cat['n']} 声苦)", file=sys.stderr)
     cries = "\n".join(f"· {r['text'][:110]}" for r in suffering[:8])
 
     # 检索与这类苦相关的佛法
@@ -124,8 +180,12 @@ def birth():
         "source": f"世界的苦（{cat['app']}, {cat['n']}声）× 检索的佛法",
         "status": "活", "attempts": 0, "no_move_streak": 0, "history": [],
     })
+    koans["koans"][-1]["apps"] = [cat["app"]]   # 这话头覆盖的类(日后近义类折叠进来)
     KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
     _mark_covered(cat["app"], nid, concept, cat["n"])  # 台账标记: 这类苦已参, 防重
+    if emb is not None:                          # 存这类嵌入, 当作日后去重的"锚"
+        cov_emb[cat["app"]] = emb
+        _save_cov_emb(cov_emb)
     print(f"[孕育] 新话头 {nid}「{cat['app']}」: {q}", file=sys.stderr)
     return nid
 
