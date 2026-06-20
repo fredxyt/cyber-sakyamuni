@@ -121,17 +121,17 @@ def birth():
         print("[孕育] 连试40类皆近义已覆盖, 本次不新建 (世界暂无新主题)。", file=sys.stderr)
         return None
 
-    suffering = neo4j_io.read_suffering_by_app(cat["app"], limit=10)
+    suffering = neo4j_io.read_suffering_by_app(cat["app"], limit=30)  # 10→30, 听更全
     if not suffering:
         print(f"[孕育] 类型「{cat['app']}」取不到问题, 跳过。", file=sys.stderr)
         return None
     print(f"[孕育] 扫盲选中【新主题】「{cat['app']}」({cat['n']} 声苦)", file=sys.stderr)
-    cries = "\n".join(f"· {r['text'][:110]}" for r in suffering[:8])
+    cries = "\n".join(f"· {r['text']}" for r in suffering)  # 全部、全文(不截)
 
     # 检索与这类苦相关的佛法
     seed_query = cat["app"] + " 苦 解脱"
     try:
-        dharma = neo4j_io.retrieve_dharma(seed_query, k=5)
+        dharma = neo4j_io.retrieve_dharma(seed_query, k=12)  # 5→12
         dharma_txt = "\n".join(f"· {c.get('summary') or c.get('text','')}" for c in dharma)
     except Exception as e:
         dharma_txt = "(佛法检索暂不可用)"

@@ -26,8 +26,8 @@ flock -n 9 || { echo "[$(date -u +%FT%TZ)] 上一跳还在跑, 跳过。" >> "$L
   [ -x "$PY" ] || PY="$DIR/.venv/bin/python"
   [ -x "$PY" ] || PY=python3
 
-  # 整跳挂 540s 墙钟超时: DeepSeek/Neo4j hang 时也必在下次心跳前结束、释放锁, 不会停摆。
-  timeout 540 "$PY" src/canpo_cycle.py --rounds "$ROUNDS"
+  # 整跳挂 1200s 墙钟超时: 喂全量context(160K+)调用更慢, 给足时间; hang也必在20分内释放锁。
+  timeout 1200 "$PY" src/canpo_cycle.py --rounds "$ROUNDS"
 
   # 提交成长 (git = 命)
   if [ -n "$(git status --porcelain)" ]; then

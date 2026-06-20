@@ -36,6 +36,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 永动参悟守护 (cyber-sakyamuni) — 每15min: daemon 没在跑就拉起。daemon 自己串行不停。
 
 # 永动参悟 (cyber-sakyamuni) — 每10分钟一批, flock 锁串行不重叠。串行不停, 回头, 永不做完。
-*/10 * * * * cd /home/ubuntu/cyber-sakyamuni && bash cron_canpo.sh 4 >> logs/cron_canpo_$(date +\%Y\%m\%d).log 2>&1
+*/10 * * * * cd /home/ubuntu/cyber-sakyamuni && bash cron_canpo.sh 2 >> logs/cron_canpo_$(date +\%Y\%m\%d).log 2>&1
 # 每日札记 (产品b) — 每天 UTC 23:00 把当天修行策展成今日一篇
 0 23 * * * cd /home/ubuntu/cyber-sakyamuni && /usr/bin/flock /tmp/canpo.lock bash cron_daily.sh >> logs/cron_daily_$(date +\%Y\%m\%d).log 2>&1

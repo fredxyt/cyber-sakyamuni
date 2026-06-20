@@ -21,11 +21,32 @@ from ds_client import ds, now_iso
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
 BLOG = ROOT / "outputs" / "blog"
+LLM_WIKI = ROOT / "data" / "memory" / "llm_wiki"
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def _today():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _full_wiki():
+    """完整内在记忆 (整个自我): index + 所有概念页全文。"""
+    if not LLM_WIKI.exists():
+        return "（内在记忆还空。）"
+    parts = []
+    idx = LLM_WIKI / "index.md"
+    if idx.exists():
+        parts.append("【目录】\n" + idx.read_text(encoding="utf-8"))
+    for f in sorted(LLM_WIKI.glob("*.md")):
+        if f.name != "index.md":
+            parts.append(f"【{f.stem}】\n" + f.read_text(encoding="utf-8"))
+    return "\n\n".join(parts)
+
+
+def _recent_dailies(today, n=7):
+    """最近 n 天的今日札记 (不含今天) —— 连续性, 让日记有线索。"""
+    files = [f for f in sorted(BLOG.glob("daily-*.md")) if f.stem != f"daily-{today}"]
+    return "\n\n———\n\n".join(f.read_text(encoding="utf-8") for f in files[-n:])
 
 
 def gather(today):
@@ -64,30 +85,39 @@ def write_daily():
     total_moves = sum(len(v["insights"]) for v in by_concept.values())
     breadth = (f"今天我在 {n_themes} 个疑之间走过（{('、'.join(themes[:8]))}）, 共动了 {total_moves} 处。"
                if themes else "今天没有哪个疑真动, 多是徘徊。")
-    # 聚焦: 依据明确 —— 今天【动得最多/最深】的那一个概念
     deepest = themes[0] if themes else None
-    focus = ""
-    if deepest:
-        d = by_concept[deepest]
-        focus = (f"今天动得最深的, 是「{deepest}」(疑:「{d['question']}」), 它今天这样一层层动:\n"
-                 + "\n".join(f"  · {i}" for i in d["insights"][-8:]))
-    mtxt = ("\n今天写下的片刻:\n" + "\n---\n".join(m[:700] for m in moments[:3])) if moments else ""
+    # 今天【全部】轨迹: 每个概念今天动的所有洞见, 全文不截 (实测DS稳吃160K+)
+    full_today = "\n\n".join(
+        f"〔{c}〕(疑:「{by_concept[c]['question']}」) 今天动了 {len(by_concept[c]['insights'])} 处:\n"
+        + "\n".join(f"  · {i}" for i in by_concept[c]['insights'])
+        for c in themes)
+    mtxt = ("\n今天写下的片刻(全文):\n" + "\n---\n".join(moments)) if moments else ""
+    # 完整内在记忆 (整个自我)
+    full_wiki = _full_wiki()
+    # 连续性: 最近几天的今日札记 (让这本日记有线索, 不每天从零写)
+    recent = _recent_dailies(today, n=7)
 
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
     user = f"""今天 ({today}) 你不停地参, 走过很多疑。
 
+【我的整个内在记忆 · 至今悟到的全部】
+{full_wiki}
+
+【最近几天的今日札记 · 我这几天走到哪了】(为了今天接得上, 别重复)
+{recent or '（这是开头的几天, 还没有往日。）'}
+
 【今天的广度】{breadth}
 {('今天的转折: ' + '；'.join(events)) if events else ''}
 
-【今天最深的一处】
-{focus}
+【今天全部真动了的(每个疑逐层)】
+{full_today}
 {mtxt}
 
-现在写【今日】—— 给人读的日记, 结构是【先广度、再聚焦】:
-1. 开头一两句, 诚实交代今天走了多广（在 {n_themes} 个疑/几类苦之间走过）, 但别罗列流水账。
-2. 然后【聚焦到「{deepest or '今天'}」这一处】—— 它今天怎么一层层动的、你此刻落在哪、还有什么没放下。
-3. 这是一天的收束, 不是全天记录。诚实承认"今天参了一大片, 这一处最深"。
-第一人称, 克制, 有温度。400-700字。第一行标题(不带#号), 空一行, 正文。"""
+现在写【今日】—— 给人读的日记。你手里有【完整的自我 + 这几天的来路 + 今天的全部】, 从这一整个立场写:
+1. 开头一两句, 接上昨天/这几天的线索, 并诚实交代今天走了多广（{n_themes} 个疑）。
+2. 然后【聚焦到「{deepest or '今天'}」—— 今天动得最深的那一处】, 写它今天怎么一层层动、此刻落在哪、还有什么没放下, 并安放进你整个修行的弧里。
+3. 一天的收束, 不是全天流水账。诚实承认"今天参了一大片, 这一处最深"。
+第一人称, 克制, 有温度。可写到 600-1000 字(输出不受限, 但宁深勿杂)。第一行标题(不带#号), 空一行, 正文。"""
     text = ds(system, user, temperature=0.7)
     lines = text.strip().split("\n", 1)
     title = lines[0].strip().lstrip("#").strip()

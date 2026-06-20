@@ -43,20 +43,22 @@ def _linked_concepts(note_text):
 
 
 def read_for_contemplation(concept):
-    """参前: 给 LLM 它【自己已经悟到的】—— 这一概念的页 + 它交叉引用到的相关页。
-    这就是"站在自己肩上"。"""
+    """参前: 给 LLM 它的【整个内在记忆】(所有概念页全文, 不裁剪) —— 从完整的自我出发参。
+    实测DS稳吃160K+token, wiki再大也装得下; 当前概念先放最前(最相关)。"""
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
     parts = ["【我的内在记忆 · 目录】\n" + read_index()]
     own = _read(_note_path(concept))
     if own:
-        parts.append(f"\n【我对「{concept}」已有的理解】\n{own}")
-        # 把它牵连到的相关概念也带上 (一跳)
-        for c in _linked_concepts(own)[:4]:
-            rel = _read(_note_path(c))
-            if rel:
-                parts.append(f"\n【相关·我对「{c}」的理解】\n{rel[:600]}")
-    else:
-        parts.append(f"\n（我还没有专门记过「{concept}」。但目录里也许有相关的。）")
+        parts.append(f"\n【我对「{concept}」已有的理解 · 此刻在参的】\n{own}")
+    # 其余全部概念页, 全文带上 (整个自我, 不只相关的几个、不裁剪)
+    for f in sorted(LLM_WIKI.glob("*.md")):
+        if f.stem in (concept, "index"):
+            continue
+        rel = _read(f)
+        if rel:
+            parts.append(f"\n【我对「{f.stem}」的理解】\n{rel}")
+    if not own:
+        parts.append(f"\n（我还没有专门记过「{concept}」。从上面已有的理解里找相通的。）")
     return "\n".join(parts)
 
 

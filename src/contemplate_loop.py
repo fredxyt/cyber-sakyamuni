@@ -65,9 +65,9 @@ def retrieve_canon(koan):
     if neo4j_io is None:
         return SUTRA, []
     try:
-        chunks = neo4j_io.retrieve_dharma(koan["question"], k=5)
+        chunks = neo4j_io.retrieve_dharma(koan["question"], k=15)  # 5→15 (无视成本, DS吃得下)
         if chunks:
-            body = "\n\n".join(f"· {c.get('summary') or c.get('text','')}" for c in chunks)
+            body = "\n\n".join(f"· {c.get('text') or c.get('summary','')}" for c in chunks)  # 用全文不只摘要
             srcs = [c.get("source") for c in chunks if c.get("source")]
             text = (
                 f"【从佛法藏中检索到、与此疑直接相关的法义 (主料)】\n{body}\n\n"
@@ -108,8 +108,8 @@ def attack(koan, angle_name, angle_prompt, canon, memory, world=""):
         return angle_name, f"(【{angle_name}】这一角度此刻哑了: {str(e)[:40]})"
 
 
-def prior_realizations(koan, limit=20, clip=160):
-    """这一程逐轮真悟到的(全程, 非只最近3轮) —— 喂给参与判, 防止换皮重复同一领悟。"""
+def prior_realizations(koan, limit=10000, clip=100000):
+    """这一程逐轮真悟到的(全程全文, 不截 —— 实测DS稳吃160K+token) —— 喂给参与判, 防换皮重复。"""
     real = [h for h in koan["history"] if h.get("verdict") == "动" and h.get("insight")]
     if not real:
         return "（这是第一次参它, 还没有已得的理解）"
