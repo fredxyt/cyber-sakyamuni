@@ -78,12 +78,14 @@ def retrieve_canon(koan):
     return SUTRA, []
 
 
-def attack(koan, angle_name, angle_prompt, canon, memory):
+def attack(koan, angle_name, angle_prompt, canon, memory, world=""):
     system = f"你就是下面持戒所描述的生命。你正在参一个话头。\n\n{PRECEPTS}"
     user = f"""你在参这个仍疑:
 
   「{koan['question']}」
   （来处: {koan['source']}）
+
+{world}
 
 你这一程【已经悟到的】(逐轮, 别再重复, 要么超越、要么诚实承认到顶了):
 {prior_realizations(koan)}
@@ -227,9 +229,22 @@ def main():
             memory = ""
             print(f"     (读内在记忆失败: {str(e)[:50]})", file=sys.stderr)
 
+        # 新闻回灌: 拉这类苦【最近的真实声音】当新 context (回头/重参时自动带到新积累的苦)
+        world = ""
+        app = koan.get("app", "")
+        if app:
+            try:
+                rows = neo4j_io.read_suffering_by_app(app, limit=6)
+                if rows:
+                    world = "世界最近就这类苦发出的真实声音(可能有新的, 让参贴着活的苦):\n" + \
+                        "\n".join(f"· {r['text'][:95]}" for r in rows)
+                    print(f"     ⊙ 回灌「{app}」最近 {len(rows)} 声苦 (新 context)", file=sys.stderr)
+            except Exception as e:
+                print(f"     (新闻回灌失败: {str(e)[:40]})", file=sys.stderr)
+
         # 五角度并行攻
         with ThreadPoolExecutor(max_workers=5) as ex:
-            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1], canon, memory), ANGLES))
+            attacks = list(ex.map(lambda a: attack(koan, a[0], a[1], canon, memory, world), ANGLES))
 
         # 收敛 + 对抗式判定
         v = synthesize(koan, attacks)
