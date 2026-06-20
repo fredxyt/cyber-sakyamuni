@@ -87,10 +87,10 @@ def list_applications():
 
 def read_suffering_by_app(app, limit=10):
     """取某一类苦的真实问题 (提炼话头用)。"""
-    a = app.replace('"', "'")
-    q = (f'MATCH (q:Question) WHERE q.application = "{a}" '
-         f'RETURN toString(q.created_at) AS ts, q.application AS app, q.text AS text '
-         f'ORDER BY q.created_at DESC LIMIT {limit}')
+    a = app.replace("'", "").replace('"', "")  # 用单引号包值(双引号会被外层 shell 吃掉), 去掉值内引号
+    q = (f"MATCH (q:Question) WHERE q.application = '{a}' "
+         f"RETURN toString(q.created_at) AS ts, q.application AS app, q.text AS text "
+         f"ORDER BY q.created_at DESC LIMIT {limit}")
     rows = []
     for line in _cypher(q).splitlines()[1:]:
         p = _split_plain(line)
