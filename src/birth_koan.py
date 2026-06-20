@@ -13,21 +13,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openai import OpenAI
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import neo4j_io
+from ds_client import client, MODEL  # 共享大脑
 
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
 STATE = ROOT / "data" / "state" / "cultivation.json"
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-
-client = OpenAI(
-    base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-    api_key=os.environ["DEEPSEEK_API_KEY"], timeout=300,
-)
-MODEL = os.environ.get("DS_MODEL", "deepseek-v4-pro")
 
 
 def _recent_suffering(n=12):
@@ -38,6 +31,18 @@ def _recent_suffering(n=12):
     if len(rows) < 4:  # watermark 后太少, 放宽到近几日
         rows = neo4j_io.read_new_suffering("2026-06-17T00:00:00", limit=n)
     return rows
+
+
+def _advance_watermark(rows):
+    """#3: 读完世界苦, 推进水位线到读到的最新一条 —— 下次读更新的苦, 别困在死水。"""
+    if not rows:
+        return
+    st = json.loads(STATE.read_text(encoding="utf-8"))
+    newest = max(r["ts"] for r in rows)
+    if newest > (st["watermarks"].get("question_created_at") or ""):
+        st["watermarks"]["question_created_at"] = newest
+        STATE.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[孕育] 水位线推进到 {newest}", file=sys.stderr)
 
 
 def birth():
@@ -105,6 +110,7 @@ def birth():
     })
     KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[孕育] 新话头 {nid}: {q}", file=sys.stderr)
+    _advance_watermark(suffering)  # #3: 读过的世界苦不再重读, 水位线前进
     return nid
 
 

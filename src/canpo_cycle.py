@@ -53,7 +53,15 @@ def main():
 
     # 3. 重建站点 (前端读 site.json)
     run("build_site.py")
-    print("[心跳] —— 完 ——", file=sys.stderr)
+
+    # 4. 推进 cycle 计数 + last
+    from datetime import datetime, timezone
+    st_path = ROOT / "data" / "state" / "cultivation.json"
+    st = json.loads(st_path.read_text(encoding="utf-8"))
+    st["cycle"] = st.get("cycle", 0) + 1
+    st["last_cultivation_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    st_path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[心跳] —— 完 (cycle {st['cycle']}) ——", file=sys.stderr)
 
 
 if __name__ == "__main__":

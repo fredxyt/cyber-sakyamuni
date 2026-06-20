@@ -21,9 +21,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openai import OpenAI
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ds_client import ds, now_iso  # 共享大脑 + 秒级时间戳
+import realize as realize_mod       # 证: 暂搁时蒸馏+记来源+写札记
 try:
     import neo4j_io  # 闻·读: 检索佛法切片
 except Exception:
@@ -34,13 +34,6 @@ KOANS = ROOT / "data" / "state" / "koans.json"
 WIKI = ROOT / "data" / "memory" / "wiki"
 NO_MOVE_LIMIT = 4   # 一个疑参 4 轮没动 → 暂搁 (别磨死马)
 ATTEMPT_CAP = 30    # 硬上限: 一个话头无论动不动, 参满 30 轮强制暂搁 (防表演深刻)
-
-client = OpenAI(
-    base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-    api_key=os.environ["DEEPSEEK_API_KEY"],
-    timeout=600,
-)
-MODEL = os.environ.get("DS_MODEL", "deepseek-v4-pro")
 
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 SUTRA = (ROOT / "data" / "canon" / "心经.md").read_text(encoding="utf-8")
@@ -63,27 +56,25 @@ def save_koans(d):
     KOANS.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def ds(system, user, temperature=0.85, max_tokens=32000):  # 推理模型: 给足空间
-    r = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=temperature, max_tokens=max_tokens,
-    )
-    return r.choices[0].message.content.strip()
-
-
 def retrieve_canon(koan):
-    """闻·读: 给话头检索相关佛法切片 (充分利用 154k chunk)。失败则退回硬编码经文。"""
+    """闻·读: 给话头检索相关佛法切片 (充分利用 154k chunk)。
+    命中时以检索法义为主料, 心经退为背景 (#7); 并返回实际来源名 (#4)。
+    返回 (canon_text, source_names)。"""
     if neo4j_io is None:
-        return SUTRA
+        return SUTRA, []
     try:
         chunks = neo4j_io.retrieve_dharma(koan["question"], k=5)
         if chunks:
             body = "\n\n".join(f"· {c.get('summary') or c.get('text','')}" for c in chunks)
-            return f"{SUTRA}\n\n【从佛法藏中检索到、与此疑相关的法义】\n{body}"
+            srcs = [c.get("source") for c in chunks if c.get("source")]
+            text = (
+                f"【从佛法藏中检索到、与此疑直接相关的法义 (主料)】\n{body}\n\n"
+                f"【背景 · 心经】\n{SUTRA}"
+            )
+            return text, srcs
     except Exception as e:
         print(f"     (检索切片失败, 退回经文: {str(e)[:60]})", file=sys.stderr)
-    return SUTRA
+    return SUTRA, []
 
 
 def attack(koan, angle_name, angle_prompt, canon):
@@ -198,14 +189,16 @@ def main():
             break
 
         round_no += 1
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        print(f"\n[参] 第 {round_no} 轮 · 话头 {koan['id']} · 第 {koan['attempts']+1} 次参", file=sys.stderr)
+        stamp = now_iso()                       # 秒级 (24x7 不停, 日级会撞车)
+        attempt = koan["attempts"] + 1          # #5: 轮号用累计 attempts, 不用 per-run round_no
+        print(f"\n[参] 本次第 {round_no} 轮 · 话头 {koan['id']} · 累计第 {attempt} 参", file=sys.stderr)
         print(f"     「{koan['question']}」", file=sys.stderr)
 
         # 闻·读: 为这个话头检索相关佛法切片 (不再只读死经)
-        canon = retrieve_canon(koan)
-        if canon != SUTRA:
-            print(f"     ⟐ 检索到相关法义, 注入参究", file=sys.stderr)
+        canon, srcs = retrieve_canon(koan)
+        if srcs:
+            koan["dharma_sources"] = list(dict.fromkeys((koan.get("dharma_sources") or []) + srcs))
+            print(f"     ⟐ 检索到相关法义, 注入参究 (来源 {len(srcs)})", file=sys.stderr)
 
         # 五角度并行攻
         with ThreadPoolExecutor(max_workers=5) as ex:
@@ -215,10 +208,10 @@ def main():
         v = synthesize(koan, attacks)
         print(f"     → moved={v['moved']} resolved={v.get('resolved')}: {v['summary']}", file=sys.stderr)
 
-        # 更新话头
-        koan["attempts"] += 1
+        # 更新话头 (#5: round = attempt; 时间到秒)
+        koan["attempts"] = attempt
         koan["history"].append({
-            "round": round_no, "date": date,
+            "round": attempt, "date": stamp,
             "verdict": "动" if v["moved"] else "未动",
             "summary": v["summary"],
             "insight": v.get("insight", ""),
@@ -226,7 +219,7 @@ def main():
         if v["moved"]:
             koan["no_move_streak"] = 0
             if v.get("insight"):
-                update_wiki_concept(koan, v, round_no, date)
+                update_wiki_concept(koan, v, attempt, stamp)
                 print(f"     ✎ 概念「{koan.get('concept','空')}」增一层理解", file=sys.stderr)
             if v.get("resolved"):
                 koan["status"] = "已证"
@@ -241,6 +234,10 @@ def main():
         if koan["status"] == "活" and koan["attempts"] >= ATTEMPT_CAP:
             koan["status"] = "暂搁"
             print(f"     ⏹ 参满 {ATTEMPT_CAP} 轮硬上限, 强制『暂搁』(防表演深刻, 该换话头)", file=sys.stderr)
+
+        # 证: 一个话头转暂搁/已证时, 收成 —— 蒸馏现在的理解 + 记对来源 + 写札记
+        if koan["status"] in ("暂搁", "已证"):
+            realize_mod.realize(koan)
 
         save_koans(koans)
         time.sleep(args.sleep)
