@@ -48,7 +48,8 @@ def try_reactivate(min_grew=8):
     best["no_move_streak"] = 0
     best["attempts"] = 0
     best["source"] = best.get("source", "") + f" ·【回头】自暂搁起又内化{best_grew}次, 带新眼睛重参"
-    KOANS.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    from io_util import write_json_atomic
+    write_json_atomic(KOANS, d)
     print(f"[心跳] 回头: 重参老疑「{best.get('concept')}」(暂搁后眼睛变了 {best_grew} 次)", file=sys.stderr)
     return True
 
@@ -89,7 +90,8 @@ def main():
     st = json.loads(st_path.read_text(encoding="utf-8"))
     st["cycle"] = st.get("cycle", 0) + 1
     st["last_cultivation_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    st_path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    from io_util import write_json_atomic
+    write_json_atomic(st_path, st)
     print(f"[心跳] —— 完 (cycle {st['cycle']}) ——", file=sys.stderr)
 
 

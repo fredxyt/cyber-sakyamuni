@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds_client import ds, now_iso  # 共享大脑 + 秒级时间戳
 import realize as realize_mod       # 证: 暂搁时内化+蒸馏+写札记
 import llm_memory                   # 内在记忆: 参前读自己 (反哺自己)
+from io_util import write_json_atomic  # 原子写, 防半写损坏 koans.json
 try:
     import neo4j_io  # 闻·读: 检索佛法切片
 except Exception:
@@ -54,7 +55,7 @@ def load_koans():
 
 
 def save_koans(d):
-    KOANS.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(KOANS, d)
 
 
 def retrieve_canon(koan):
@@ -101,7 +102,10 @@ def attack(koan, angle_name, angle_prompt, canon, memory, world=""):
   要么真的更进一步, 要么老实说"这一程到顶了"。）
 
 只从这一个角度, 写 150-400 字。不要面面俱到。诚实, 锋利。"""
-    return angle_name, ds(system, user, max_tokens=32000)
+    try:
+        return angle_name, ds(system, user, max_tokens=32000)
+    except Exception as e:   # 单角度哑了不炸全轮, 其余角度+收敛照常
+        return angle_name, f"(【{angle_name}】这一角度此刻哑了: {str(e)[:40]})"
 
 
 def prior_realizations(koan, limit=20, clip=160):
@@ -162,7 +166,8 @@ def synthesize(koan, attacks):
     try:
         return json.loads(raw.strip())
     except Exception as e:
-        return {"moved": False, "summary": f"(收敛解析失败: {e})", "insight": "", "resolved": False}
+        # 解析失败 ≠ 未动。标 parse_error, 让本轮作废重来, 不污染 no_move_streak/历史。
+        return {"moved": False, "summary": f"(收敛解析失败: {e})", "insight": "", "resolved": False, "parse_error": True}
 
 
 def update_wiki_concept(koan, verdict, round_no, date):
@@ -250,6 +255,10 @@ def main():
 
         # 收敛 + 对抗式判定
         v = synthesize(koan, attacks)
+        if v.get("parse_error"):   # 收敛没读到判决: 本轮作废, 不计历史/不动 streak/不耗 attempts
+            print(f"     ⚠ 收敛解析失败, 本轮作废重来 (不污染状态)", file=sys.stderr)
+            time.sleep(args.sleep)
+            continue
         print(f"     → moved={v['moved']} resolved={v.get('resolved')}: {v['summary']}", file=sys.stderr)
 
         # 更新话头 (#5: round = attempt; 时间到秒)

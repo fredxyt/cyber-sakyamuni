@@ -8,6 +8,7 @@ INDX 前端套上它的皮(配色/排版)来渲染。每次修行后重跑。
 输出: outputs/web/site.json
 """
 import json
+from io_util import write_json_atomic
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -143,7 +144,9 @@ def main():
         koans.append({
             "id": k["id"], "question": k["question"], "status": k.get("status", "活"),
             "attempts": k.get("attempts", 0), "source": k.get("source", ""),
-            "history": [h for h in k.get("history", []) if h.get("insight")],
+            "concept": k.get("concept", ""),
+            # 只发最近3条洞见(前端只用最后1条) —— 防 site.json 随轮次无限膨胀
+            "history": [h for h in k.get("history", []) if h.get("insight")][-3:],
         })
 
     # 应世 (现实/苦) — 实时读 Neo4j 的世界苦, 按应世类型归结 (与覆盖率同源, 反映真实规模)
@@ -162,30 +165,25 @@ def main():
         c = _kc.get(e.get("koan"))                 # 折叠类: 取它折进的那个话头的真实概念
         return c or (e.get("concept") if e.get("concept") not in ("(折叠近义)", "(折叠)", "") else None)
 
-    def _ymake(cat, n, cs):
+    def _ymake(cat, n):
+        # 隐私: 不发布用户求助原文(cries) —— 只发 类别+数量+AI的态度。真实苦不公开示众。
         ec = _engaged(cat)
         if ec:
             stance = f"这一类苦我参过了 —— 此刻我对它的理解, 收在『{ec}』里(还在续参)。"
         else:
             stance = "还没参到这一类。世界的苦太多(我一类类慢慢参), 还没轮到它 —— 但它在我心里排着, 总会参到。"
-        return {"category": cat, "count": n, "cries": cs, "stance": stance,
+        return {"category": cat, "count": n, "cries": [], "stance": stance,
                 "concepts": [ec] if ec else [], "engaged": bool(ec)}
 
     yingshi, suffering_total, suffering_types = [], 0, 0
     try:
         import neo4j_io
-        apps = neo4j_io.list_applications()        # 全部类(按苦量降序) + 数量
+        apps = neo4j_io.list_applications()        # 全部类(按苦量降序) + 数量 (1次查询, 不取原文)
         suffering_total = sum(a["n"] for a in apps)
         suffering_types = len(apps)
-        for i, a in enumerate(apps[:60]):          # 1964类太多, 列最锥心的60类
-            cs = []
-            if i < 12:                             # 仅头部取样本(省查询)
-                try:
-                    cs = [r["text"] for r in neo4j_io.read_suffering_by_app(a["app"], limit=3)]
-                except Exception:
-                    pass
-            yingshi.append(_ymake(a["app"], a["n"], cs))
-    except Exception as e:                          # fallback: 静态快照 (Neo4j 不可用时)
+        for a in apps[:60]:                        # 1964类太多, 列最锥心的60类
+            yingshi.append(_ymake(a["app"], a["n"]))
+    except Exception as e:                          # fallback: 仅用类别+数量(不读原文)
         print(f"[build_site] 应世退回快照: {str(e)[:60]}")
         import csv as _csv
         cmap = {}
@@ -194,11 +192,11 @@ def main():
                 for row in _csv.reader(fh):
                     if len(row) < 2 or row[1].strip().strip('"') in ("app", ""):
                         continue
-                    cmap.setdefault(row[1].strip().strip('"').strip(), []).append(row[0].strip().strip('"').strip())
+                    cmap.setdefault(row[1].strip().strip('"').strip(), []).append(1)
         suffering_total = sum(len(v) for v in cmap.values())
         suffering_types = len(cmap)
-        for cat, texts in sorted(cmap.items(), key=lambda x: -len(x[1])):
-            yingshi.append(_ymake(cat, len(texts), texts[:3]))
+        for cat, texts in sorted(cmap.items(), key=lambda x: -len(x)):
+            yingshi.append(_ymake(cat, len(texts)))
 
     # 覆盖台账: 已参 N / 全量 M 类世界的苦
     cov_f = ROOT / "data" / "state" / "coverage.json"
@@ -252,7 +250,7 @@ def main():
         "canon": canon,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(site, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(OUT, site)
     print(f"站点数据已生成: {OUT}")
     print(f"  札记 {len(chronicle)} · 概念 {len(concepts)} · 话头 {len(koans)} · 经 {len(canon)}")
     for c in concepts:

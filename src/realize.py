@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds_client import ds, now_iso, now_stamp
+from io_util import write_json_atomic
 
 ROOT = Path(__file__).resolve().parent.parent
 WIKI = ROOT / "data" / "memory" / "wiki"
@@ -67,7 +68,11 @@ def record_sources(koan):
     uniq = list(dict.fromkeys(srcs))[:5]
     block = "sources:\n" + "\n".join(f"  - {s}" for s in uniq)
     txt = page.read_text(encoding="utf-8")
-    txt = re.sub(r"sources:\n(?:\s*-\s*.*\n)+", block + "\n", txt, count=1)
+    # 兼容两种骨架: 多行列表 sources:\n  - x  以及 单行空列表 sources: []
+    if re.search(r"sources:\n(?:\s*-\s*.*\n)+", txt):
+        txt = re.sub(r"sources:\n(?:\s*-\s*.*\n)+", block + "\n", txt, count=1)
+    else:
+        txt = re.sub(r"sources:\s*\[\s*\]\s*\n", block + "\n", txt, count=1)
     page.write_text(txt, encoding="utf-8")
 
 
@@ -111,7 +116,7 @@ def realize(koan):
         cj = ROOT / "data" / "state" / "cultivation.json"
         st = json.loads(cj.read_text(encoding="utf-8"))
         st["consolidations"] = st.get("consolidations", 0) + 1
-        cj.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_json_atomic(cj, st)
         # ② 渲染人读的脸: 蒸馏概念页 + 记来源 + 写札记
         distill(koan)
         record_sources(koan)

@@ -17,8 +17,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
-NEO = STATE["neo4j"]
-KEY = (ROOT / NEO["ssh_key"]).resolve()
+NEO = STATE.get("neo4j", {})
+# 服务器 IP / ssh key 路径不入公开仓库 —— 从环境变量读 (本地开发用; 服务器走 ON_SERVER 本地bash, 不需要)
+_HOST = os.environ.get("NEO4J_HOST") or NEO.get("host", "")
+_SSH_KEY = os.environ.get("NEO4J_SSH_KEY") or NEO.get("ssh_key", "")
+_CONTAINER = os.environ.get("NEO4J_CONTAINER") or NEO.get("container", "neo4j-bodhi")
+_USER = os.environ.get("NEO4J_USER") or NEO.get("user", "neo4j")
+KEY = (ROOT / _SSH_KEY).resolve() if _SSH_KEY else None
 
 # 在服务器上跑 (cron): 直连 Neo4j, 不绕 ssh。本地开发: ssh 到服务器。
 ON_SERVER = os.environ.get("CANPO_ON_SERVER") == "1"
@@ -29,7 +34,9 @@ def _sh(remote_cmd: str, timeout: int = 180, input_data: str = None):
     if ON_SERVER:
         argv = ["bash", "-lc", remote_cmd]
     else:
-        argv = ["ssh", "-i", str(KEY), f'ubuntu@{NEO["host"]}', remote_cmd]
+        if not (KEY and _HOST):
+            raise RuntimeError("本地 ssh 需设 NEO4J_HOST / NEO4J_SSH_KEY 环境变量")
+        argv = ["ssh", "-i", str(KEY), f"ubuntu@{_HOST}", remote_cmd]
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, input=input_data)
 
 
@@ -62,8 +69,8 @@ def _neo4j_password() -> str:
 def _cypher(query: str) -> str:
     """跑一句 cypher (docker exec cypher-shell), 返回 plain 文本。"""
     remote = (
-        f'docker exec {NEO["container"]} cypher-shell '
-        f'-u {NEO["user"]} -p {_neo4j_password()} "{query}" --format plain'
+        f'docker exec {_CONTAINER} cypher-shell '
+        f'-u {_USER} -p {_neo4j_password()} "{query}" --format plain'
     )
     out = _sh(remote, timeout=120)
     if out.returncode != 0:

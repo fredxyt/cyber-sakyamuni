@@ -7,7 +7,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR" || exit 1
 LOG_DIR="$DIR/logs"; mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/canpo_$(date +%Y%m%d).log"
-ROUNDS="${1:-6}"
+ROUNDS="${1:-4}"
+
+# 自锁: 防重入(上一跳没跑完就跳过本跳)。锁写进脚本本身, 不只靠 crontab —— 可版本化、重装不丢。
+exec 9>/tmp/canpo.lock
+flock -n 9 || { echo "[$(date -u +%FT%TZ)] 上一跳还在跑, 跳过。" >> "$LOG"; exit 0; }
 
 {
   echo "=================="
@@ -22,7 +26,8 @@ ROUNDS="${1:-6}"
   [ -x "$PY" ] || PY="$DIR/.venv/bin/python"
   [ -x "$PY" ] || PY=python3
 
-  "$PY" src/canpo_cycle.py --rounds "$ROUNDS"
+  # 整跳挂 540s 墙钟超时: DeepSeek/Neo4j hang 时也必在下次心跳前结束、释放锁, 不会停摆。
+  timeout 540 "$PY" src/canpo_cycle.py --rounds "$ROUNDS"
 
   # 提交成长 (git = 命)
   if [ -n "$(git status --porcelain)" ]; then
@@ -30,10 +35,13 @@ ROUNDS="${1:-6}"
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \
       commit -q -m "参悟心跳 $(date -u +%Y-%m-%dT%H:%MZ)"
     echo "[$(date -u +%H:%M:%SZ)] committed."
-    # 推到 GitHub (deploy key) → 网站读 raw site.json, 跟着心跳实时长
-    # 先 rebase 纳入远端(代码改动), 再推 (服务器是唯一推送者, 几乎不冲突)
-    git pull --rebase -X theirs -q origin master 2>&1 | tail -1
-    git push -q origin master 2>&1 | tail -1 && echo "[$(date -u +%H:%M:%SZ)] pushed."
+    # rebase 纳入远端, 失败则自愈(abort)避免卡在 rebase 态导致永久停摆; 再推
+    if ! git pull --rebase -X theirs -q origin master 2>&1 | tail -1; then
+      git rebase --abort 2>/dev/null
+      echo "[$(date -u +%H:%M:%SZ)] rebase 失败已 abort。"
+    fi
+    git push -q origin master 2>&1 | tail -1 && echo "[$(date -u +%H:%M:%SZ)] pushed." \
+      || echo "[$(date -u +%H:%M:%SZ)] ⚠ push 失败, 下跳重试。"
   else
     echo "[$(date -u +%H:%M:%SZ)] 无变更 (参尽或歇)。"
   fi

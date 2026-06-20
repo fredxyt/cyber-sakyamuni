@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import neo4j_io
 from ds_client import client, MODEL  # 共享大脑
+from io_util import write_json_atomic  # 原子写
 
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
@@ -43,7 +44,7 @@ def _mark_covered(app, koan_id, concept, n):
         cov["total_types"] = len(neo4j_io.list_applications())  # 分母: 世界苦的类型总数
     except Exception:
         pass
-    COVERAGE.write_text(json.dumps(cov, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(COVERAGE, cov)
 
 
 def pick_uncovered():
@@ -65,7 +66,7 @@ def _load_cov_emb():
 
 
 def _save_cov_emb(d):
-    COV_EMB.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    write_json_atomic(COV_EMB, d)
 
 
 def _cosine(a, b):
@@ -86,7 +87,7 @@ def _fold(cat, near_app, sim):
                 apps.append(cat["app"])
             kid = k["id"]
             break
-    KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(KOANS, koans)
     _mark_covered(cat["app"], kid, "(折叠近义)", cat["n"])
     print(f"[孕育] 「{cat['app']}」≈「{near_app}」({sim:.2f}) → 折叠进 {kid}, 不新建", file=sys.stderr)
 
@@ -181,7 +182,7 @@ def birth():
         "status": "活", "attempts": 0, "no_move_streak": 0, "history": [],
     })
     koans["koans"][-1]["apps"] = [cat["app"]]   # 这话头覆盖的类(日后近义类折叠进来)
-    KOANS.write_text(json.dumps(koans, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(KOANS, koans)
     _mark_covered(cat["app"], nid, concept, cat["n"])  # 台账标记: 这类苦已参, 防重
     if emb is not None:                          # 存这类嵌入, 当作日后去重的"锚"
         cov_emb[cat["app"]] = emb
