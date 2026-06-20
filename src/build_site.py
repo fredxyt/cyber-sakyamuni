@@ -75,30 +75,39 @@ def parse_wrong_turns(md):
 
 
 def main():
-    # 札记 (chronicle) — 主体。24x7 不停参, 文件名秒级 (2026-06-20T01-12-30Z), 新的在前。
+    # 年谱 (chronicle) — 脊柱只放【今日】(产品, 一天一篇) + 诞生(钉底)。
+    # 片刻(话头暂搁时的原始反思)不上年谱, 归到它所属概念页里(困惑史旁), 免得刷屏混排。
     chronicle = []
+    moments_by_concept = {}
     for f in BLOG.glob("*.md"):
         md = f.read_text(encoding="utf-8")
         m = re.search(r"cycle(\d+)", f.stem)
-        is_daily = f.stem.startswith("daily-")   # 今日(产品) vs 片刻(原始)
-        # 今日: daily-2026-06-20; 片刻秒级: 2026-06-20T01-12-30Z; 诞生: 2026-06-19-cycle1
+        is_daily = f.stem.startswith("daily-")
+        is_birth = bool(m) and not is_daily          # 诞生: 2026-06-19-cycle1
         dm = re.match(r"daily-(\d{4}-\d{2}-\d{2})", f.stem)
         tm = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})", f.stem)
         date_m = re.match(r"(\d{4}-\d{2}-\d{2})", f.stem)
         date = (dm.group(1) if dm else date_m.group(1)) if (dm or date_m) else ""
-        when = (date if is_daily else (f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date))
-        chronicle.append({
-            "id": f.stem, "sort": (date + "~daily") if is_daily else f.stem,  # 同日今日排片刻之上
-            "kind": "daily" if is_daily else "moment",
-            "date": date, "when": when,
-            "cycle": int(m.group(1)) if m else None,
-            "title": first_heading(md),
-            "markdown": md,
-            "excerpt": excerpt(re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE), 100),
-        })
-    chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 新的在前; 同日今日在片刻上
+        title = re.sub(r"^今日札记[:：·]\s*", "", first_heading(md))  # 去冗余前缀
+        exc = excerpt(re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE), 100)
+        entry = {"id": f.stem, "date": date, "title": title, "markdown": md, "excerpt": exc}
+        if is_daily:
+            chronicle.append({**entry, "kind": "daily", "when": date, "cycle": None,
+                              "sort": date + "~daily"})
+        elif is_birth:
+            chronicle.append({**entry, "kind": "birth", "when": date, "cycle": int(m.group(1)),
+                              "sort": ""})  # 诞生永远钉年谱最底
+        else:  # 片刻 → 归到概念
+            when = f"{date} {tm.group(2)}:{tm.group(3)} UTC" if tm else date
+            cm = re.search(r"参「([^」]+)」", md)
+            concept = cm.group(1) if cm else ""
+            moments_by_concept.setdefault(concept, []).append(
+                {**entry, "kind": "moment", "when": when})
+    chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 今日按日倒序, 诞生(sort="")钉底
+    for ms in moments_by_concept.values():
+        ms.sort(key=lambda x: x["id"], reverse=True)
 
-    # 概念 (义理门) — 带困惑史
+    # 概念 (义理门) — 带困惑史 + 它的片刻(归位的原始反思)
     concepts = []
     for f in sorted((WIKI / "concepts").glob("*.md")):
         fm, body = parse_frontmatter(f.read_text(encoding="utf-8"))
@@ -112,6 +121,7 @@ def main():
             "understanding": section(body, "现在我的理解"),
             "wrong_turns": parse_wrong_turns(section(body, "我走过的弯路")),
             "doubt": section(body, "仍疑"),
+            "moments": moments_by_concept.get(f.stem, []),
         })
 
     # 话头 (仍疑) — 状态 + 参究史
