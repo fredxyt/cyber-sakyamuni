@@ -229,16 +229,18 @@ def main():
             memory = ""
             print(f"     (读内在记忆失败: {str(e)[:50]})", file=sys.stderr)
 
-        # 新闻回灌: 拉这类苦【最近的真实声音】当新 context (回头/重参时自动带到新积累的苦)
+        # 新闻回灌: 拉这话头整簇(主类+折叠的近义类)的【最近真实苦声】当新 context
         world = ""
-        app = koan.get("app", "")
-        if app:
+        apps = koan.get("apps") or ([koan["app"]] if koan.get("app") else [])
+        if apps:
             try:
-                rows = neo4j_io.read_suffering_by_app(app, limit=6)
+                rows = []
+                for a in apps[:4]:                       # 折叠进来的近义类都带上
+                    rows += neo4j_io.read_suffering_by_app(a, limit=3)
                 if rows:
-                    world = "世界最近就这类苦发出的真实声音(可能有新的, 让参贴着活的苦):\n" + \
-                        "\n".join(f"· {r['text'][:95]}" for r in rows)
-                    print(f"     ⊙ 回灌「{app}」最近 {len(rows)} 声苦 (新 context)", file=sys.stderr)
+                    world = "世界最近就这(几)类苦发出的真实声音(可能有新的, 让参贴着活的苦):\n" + \
+                        "\n".join(f"· {r['text'][:95]}" for r in rows[:8])
+                    print(f"     ⊙ 回灌 {len(apps[:4])} 类共 {len(rows)} 声苦 (新 context)", file=sys.stderr)
             except Exception as e:
                 print(f"     (新闻回灌失败: {str(e)[:40]})", file=sys.stderr)
 
