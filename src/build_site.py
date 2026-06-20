@@ -109,6 +109,13 @@ def main():
     for ms in moments_by_concept.values():
         ms.sort(key=lambda x: x["id"], reverse=True)
 
+    # 概念状态兜底: 概念页 frontmatter 可能没写 status, 从对应话头推导 (已证/否则仍疑)
+    _koan_status = {}
+    for k in json.loads(KOANS.read_text(encoding="utf-8")).get("koans", []):
+        c = k.get("concept", "")
+        if c and _koan_status.get(c) != "已证":
+            _koan_status[c] = "已证" if k.get("status") == "已证" else "仍疑"
+
     # 概念 (义理门) — 带困惑史 + 它的片刻(归位的原始反思)
     concepts = []
     for f in sorted((WIKI / "concepts").glob("*.md")):
@@ -118,7 +125,7 @@ def main():
             sources = [sources]
         concepts.append({
             "name": f.stem,
-            "status": fm.get("status", ""),
+            "status": fm.get("status") or _koan_status.get(f.stem, "仍疑"),
             "sources": sources,
             "understanding": section(body, "现在我的理解"),
             "wrong_turns": parse_wrong_turns(section(body, "我走过的弯路")),
