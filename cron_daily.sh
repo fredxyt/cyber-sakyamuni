@@ -18,6 +18,11 @@ LOG="logs/daily_$(date +%Y%m%d).log"
 
   if [ -n "$(git status --porcelain)" ]; then
     git add -A
+    # 隐私守门(双保险): 轨迹含 P2 真人苦诉, 进暂存区即中止
+    if git diff --cached --name-only | grep -q '^data/traces/'; then
+      echo "🚨 traces 进入暂存区(含P2隐私), 中止提交。" >&2
+      git reset -q; exit 0
+    fi
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \
       commit -q -m "今日札记 $(date -u +%Y-%m-%d)"
     git pull --rebase -X theirs -q origin master 2>&1 | tail -1 || git rebase --abort 2>/dev/null

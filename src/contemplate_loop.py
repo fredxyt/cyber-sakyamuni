@@ -30,6 +30,10 @@ try:
     import neo4j_io  # 闻·读: 检索佛法切片
 except Exception:
     neo4j_io = None
+try:
+    import trace_io  # 增量·参悟轨迹无损落盘(为训练准备; fail-open, 不影响参)
+except Exception:
+    trace_io = None
 
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
@@ -76,6 +80,29 @@ def _save_emb_cache():
             pass
 
 
+def _safe_emit(rec, parse_error=False):
+    """轨迹落盘的 fail-open 包裹: trace_io 不可用或出错都吞掉, 心跳照常。"""
+    if trace_io is None:
+        return
+    try:
+        trace_io.append_trace(rec, parse_error=parse_error)
+    except Exception as e:
+        print(f"     (trace emit 失败: {str(e)[:40]})", file=sys.stderr)
+
+
+def _warm_then_fan(angles, call):
+    """缓存友好的角度调度: 先串行跑第1个角度预热共享前缀, 其余并行命中 DS 前缀缓存。
+    纯改发送时序 —— 每个角度的 prompt 与生成逐字不变, 参的行为无损。"""
+    angles = list(angles)
+    if not angles:
+        return []
+    out = [call(angles[0])]   # 串行预热共享前缀
+    if len(angles) > 1:
+        with ThreadPoolExecutor(max_workers=len(angles) - 1) as ex:
+            out += list(ex.map(call, angles[1:]))
+    return out
+
+
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 SUTRA = (ROOT / "data" / "canon" / "心经.md").read_text(encoding="utf-8")
 
@@ -104,9 +131,9 @@ def save_koans(d):
 def retrieve_canon(koan):
     """闻·读: 给话头检索相关佛法切片 (充分利用 154k chunk)。
     命中时以检索法义为主料, 心经退为背景 (#7); 并返回实际来源名 (#4)。
-    返回 (canon_text, source_names)。"""
+    返回 (canon_text, source_names, chunks)。chunks 仅供轨迹记录, text/srcs 拼法不变。"""
     if neo4j_io is None:
-        return SUTRA, []
+        return SUTRA, [], []
     try:
         chunks = neo4j_io.retrieve_dharma(koan["question"], k=15)  # 5→15 (无视成本, DS吃得下)
         if chunks:
@@ -116,10 +143,10 @@ def retrieve_canon(koan):
                 f"【从佛法藏中检索到、与此疑直接相关的法义 (主料)】\n{body}\n\n"
                 f"【背景 · 心经】\n{SUTRA}"
             )
-            return text, srcs
+            return text, srcs, chunks
     except Exception as e:
         print(f"     (检索切片失败, 退回经文: {str(e)[:60]})", file=sys.stderr)
-    return SUTRA, []
+    return SUTRA, [], []
 
 
 def attack(koan, angle_name, angle_prompt, wordcount, canon, memory, world="", solve_text=""):
@@ -214,11 +241,13 @@ def synthesize(koan, attacks):
         v = json.loads(raw.strip())
     except Exception as e:
         return {"moved": False, "summary": f"(收敛解析失败: {e})", "insight": "", "reached_plateau": False, "parse_error": True}
+    v["_raw_snapshot"] = {"moved": v.get("moved"), "insight": v.get("insight", ""), "summary": v.get("summary", "")}  # 增量·闸前快照(纯读, 不进任何分支判断)
     # 代码侧硬闸: 不信 DS 自评 moved —— 任一反对被绕过/没答, 或拿不出 new_delta/超越, 一律强制 moved=false
     rc = v.get("rebuttal_check") or []
     dodged = any(str(x.get("回应", "")).strip() in ("绕过", "没答") for x in rc)
     no_delta = str(v.get("new_delta", "")).strip() in ("", "无")
     no_surpass = str(v.get("surpasses_which", "")).strip() in ("", "无")
+    v["_gate_flags"] = {"dodged": dodged, "no_delta": no_delta, "no_surpass": no_surpass}  # 增量·供 trace, 不改判定
     if dodged or (no_delta and no_surpass):
         v["moved"] = False
         v["insight"] = ""
@@ -230,6 +259,7 @@ def synthesize(koan, attacks):
             try:
                 embs = _embeddings([v["insight"]] + priors)   # 内容哈希缓存: 旧洞见复用, 只embed新的
                 sim = max(_cosine(embs[0], pe) for pe in embs[1:])
+                v["_novelty_sim"] = sim   # 增量·捞回被丢的 sim
                 if sim >= NOVELTY_SIM:
                     v["moved"] = False
                     v["insight"] = ""
@@ -294,7 +324,7 @@ def main():
         print(f"     「{koan['question']}」", file=sys.stderr)
 
         # 闻·读: 为这个话头检索相关佛法切片 (不再只读死经)
-        canon, srcs = retrieve_canon(koan)
+        canon, srcs, chunks = retrieve_canon(koan)
         if srcs:
             koan["dharma_sources"] = list(dict.fromkeys((koan.get("dharma_sources") or []) + srcs))
             print(f"     ⟐ 检索到相关法义, 注入参究 (来源 {len(srcs)})", file=sys.stderr)
@@ -309,6 +339,7 @@ def main():
 
         # 新闻回灌: 拉这话头整簇(主类+折叠的近义类)的【最近真实苦声】当新 context
         world = ""
+        world_rows = []   # 增量·供 trace: 回灌的真人苦原始 rows (P0 隐私)
         apps = koan.get("apps") or ([koan["app"]] if koan.get("app") else [])
         if apps:
             try:
@@ -316,6 +347,7 @@ def main():
                 for a in apps[:4]:                       # 折叠进来的近义类都带上
                     rows += neo4j_io.read_suffering_by_app(a, limit=3)
                 if rows:
+                    world_rows = rows
                     world = "世界最近就这(几)类苦发出的真实声音(贴着活的苦参, 别抽象掉):\n" + \
                         "\n".join(f"· {r['text']}" for r in rows)
                     print(f"     ⊙ 回灌 {len(apps[:4])} 类共 {len(rows)} 声苦 (新 context)", file=sys.stderr)
@@ -323,16 +355,19 @@ def main():
                 print(f"     (新闻回灌失败: {str(e)[:40]})", file=sys.stderr)
 
         # 两阶段攻: 先【经】【解】立论 → 把【解】原文注入【驳人镜行默】, 咬住它的原话(真对抗)
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            a_res = list(ex.map(lambda a: attack(koan, a[0], a[1], a[2], canon, memory, world), ANGLES_A))
+        # warm-then-fan: 每批先串行预热共享前缀(话头+已悟+context), 其余并行命中 DS 前缀缓存。
+        # 纯改发送时序 —— 每个角度的 prompt/生成逐字不变, 参的行为无损。
+        a_res = _warm_then_fan(ANGLES_A, lambda a: attack(koan, a[0], a[1], a[2], canon, memory, world))
         solve_text = dict(a_res).get("解", "")
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            b_res = list(ex.map(lambda a: attack(koan, a[0], a[1], a[2], canon, memory, world, solve_text), ANGLES_B))
+        b_res = _warm_then_fan(ANGLES_B, lambda a: attack(koan, a[0], a[1], a[2], canon, memory, world, solve_text))
         attacks = a_res + b_res
 
         # 收敛 + 对抗式判定 (举证式, 代码硬闸)
         v = synthesize(koan, attacks)
         if v.get("parse_error"):   # 收敛没读到判决: 本轮作废, 不计历史/不动 streak/不耗 attempts
+            _safe_emit({"schema_version": 1, "koan_id": koan["id"], "attempt": attempt, "stamp": stamp,
+                        "attacks": [{"angle": n, "text": t} for n, t in attacks],
+                        "verdict_full": {"parse_error": True, "summary": v.get("summary")}}, parse_error=True)
             print(f"     ⚠ 收敛解析失败, 本轮作废重来 (不污染状态)", file=sys.stderr)
             time.sleep(args.sleep)
             continue
@@ -378,6 +413,25 @@ def main():
             koan["consolidations_at_pause"] = st.get("consolidations", 0)
 
         save_koans(koans)
+        # 增量·轨迹落盘(纯观察, save 后 emit; 参逻辑零改动; fail-open 绝不阻断)
+        if trace_io is not None:
+            try:
+                rs = v.get("_raw_snapshot") or {"moved": v.get("moved"), "insight": v.get("insight", ""), "summary": v.get("summary")}
+                gf = v.get("_gate_flags") or {}
+                gate = {
+                    "evidence": {"dodged": gf.get("dodged"), "no_delta": gf.get("no_delta"),
+                                 "no_surpass": gf.get("no_surpass"),
+                                 "tripped": bool(gf.get("dodged") or (gf.get("no_delta") and gf.get("no_surpass")))},
+                    "novelty": {"ran": "_novelty_sim" in v, "sim": v.get("_novelty_sim"),
+                                "threshold": NOVELTY_SIM, "recycled": bool(v.get("recycled"))},
+                    "overridden": bool(rs.get("moved")) and not bool(v.get("moved")),
+                }
+                rec = trace_io.build_trace(koan, attempt, stamp, canon=canon, srcs=srcs, chunks=chunks,
+                                           memory=memory, apps=apps, world_rows=world_rows,
+                                           attacks=attacks, v=v, raw_snapshot=rs, gate=gate)
+                trace_io.append_trace(rec)
+            except Exception as e:
+                print(f"     (trace 落盘失败, 不阻断: {str(e)[:50]})", file=sys.stderr)
         time.sleep(args.sleep)
 
     _save_emb_cache()   # 落盘洞见 embedding 缓存(下次心跳进程复用, 旧洞见不必重embed)

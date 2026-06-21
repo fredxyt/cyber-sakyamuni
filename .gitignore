@@ -9,5 +9,7 @@ data/sources/*.raw
 .env.canpo
 *.pem
 data/state/cov_emb.json
-logs/
 data/state/insight_emb.json
+# 参悟轨迹: 含 P2 真人苦诉原文, 永不入库 (红区脱敏区都不入, 深度防御)
+data/traces/
+logs/

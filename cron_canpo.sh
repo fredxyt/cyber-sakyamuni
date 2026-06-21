@@ -32,6 +32,11 @@ flock -n 9 || { echo "[$(date -u +%FT%TZ)] 上一跳还在跑, 跳过。" >> "$L
   # 提交成长 (git = 命)
   if [ -n "$(git status --porcelain)" ]; then
     git add -A
+    # 隐私守门(双保险): 轨迹含 P2 真人苦诉, 一旦进暂存区即中止提交, 宁可不提交也不泄露
+    if git diff --cached --name-only | grep -q '^data/traces/'; then
+      echo "[$(date -u +%H:%M:%SZ)] 🚨 traces 进入暂存区(含P2隐私), 中止提交。" >&2
+      git reset -q; exit 0
+    fi
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \
       commit -q -m "参悟心跳 $(date -u +%Y-%m-%dT%H:%MZ)"
     echo "[$(date -u +%H:%M:%SZ)] committed."

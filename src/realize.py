@@ -68,6 +68,15 @@ def distill(koan, internal_note=""):
     )
     page.write_text(txt, encoding="utf-8")
     print(f"     ✎ 蒸馏「{concept}」现在我的理解", file=sys.stderr)
+    # 增量·realize_event 轨迹: 旧理解 vs 新理解 = DPO 天然时序偏好对 (独立记录, 导出器按 koan_id 关联)
+    try:
+        import trace_io
+        trace_io.append_trace({"schema_version": trace_io.SCHEMA_VERSION, "kind": "realize_event",
+                               "koan_id": koan.get("id"), "concept": concept,
+                               "attempt": koan.get("attempts"), "stamp": now_iso(),
+                               "realize": {"distill_old": old, "distill_new": new_understanding}})
+    except Exception:
+        pass
     return new_understanding
 
 
