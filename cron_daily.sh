@@ -17,6 +17,11 @@ LOG="logs/daily_$(date +%Y%m%d).log"
   "$PY" src/build_site.py
   # 每天把累积的参悟轨迹导成训练集(dpo/sft/trace/cpt); 输出在 data/traces/_export/(gitignored)。失败不阻断当日提交。
   "$PY" tools/export_traces.py || echo "[$(date -u +%FT%TZ)] 训练集导出失败, 不阻断。"
+  # 备份训练料(raw+_export)到【私有 repo】异地存档; 与公开仓库彻底分开, 不进 GitHub 公开仓库。失败不阻断。
+  ( cd data/traces \
+    && git add -A \
+    && if ! git diff --cached --quiet; then git commit -q -m "traces $(date -u +%Y-%m-%dT%H:%MZ)"; fi \
+    && git push -q origin main ) || echo "[$(date -u +%FT%TZ)] traces 私有备份失败, 不阻断。"
 
   if [ -n "$(git status --porcelain)" ]; then
     git add -A
