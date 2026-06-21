@@ -216,6 +216,8 @@ def synthesize(koan, attacks):
                     v["insight"] = ""
                     v["summary"] = f"(换皮: 新洞见与旧洞见语义重合 {sim:.2f}≥{NOVELTY_SIM})"
                     print(f"     ⊘ 语义新颖度闸: 与旧洞见重合 {sim:.2f} → 判换皮(未动)", file=sys.stderr)
+                else:
+                    print(f"     ⊙ 新颖度 {sim:.2f} < {NOVELTY_SIM}, 真新, 放行", file=sys.stderr)
             except Exception as e:
                 print(f"     (新颖度闸 embedding 暂不可用, 退回举证闸: {str(e)[:40]})", file=sys.stderr)
     return v
