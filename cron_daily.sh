@@ -20,8 +20,8 @@ LOG="logs/daily_$(date +%Y%m%d).log"
     git add -A
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \
       commit -q -m "今日札记 $(date -u +%Y-%m-%d)"
-    git pull --rebase -X theirs -q origin master 2>&1 | tail -1
-    git push -q origin master 2>&1 | tail -1 && echo "pushed."
+    git pull --rebase -X theirs -q origin master 2>&1 | tail -1 || git rebase --abort 2>/dev/null
+    if git push -q origin master 2>&1; then echo "pushed."; else echo "⚠ push 失败, 下跳重试。"; fi
   fi
   echo "[$(date -u +%FT%TZ)] 今日札记 end"
 } >> "$LOG" 2>&1

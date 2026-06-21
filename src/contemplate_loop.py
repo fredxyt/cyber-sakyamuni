@@ -2,7 +2,8 @@
 """
 参 · 永不停歇的思辨循环
 
-抱住一个仍疑(话头), 从多角度同时攻, 对抗式验证防自欺, 参到稳住才转已证。
+抱住一个仍疑(话头), 从多角度同时攻, 对抗式验证防自欺, 参到稳住就内化, 凿不动就暂搁。
+(它永远仍疑——靠 LLM 达不到真证悟, 没有"已证"状态, 只有 活⇄暂搁。)
 不刷新问题——参旧疑。参不动就暂搁, 全部参尽则静待世界给新料(参到尽则歇)。
 
 引擎是 DeepSeek v4 pro 的并行调用 (它直面世界最重的苦, 不回避)。
@@ -15,11 +16,9 @@
 import argparse
 import hashlib
 import json
-import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -172,15 +171,6 @@ def prior_realizations(koan, tier=False):
     return "\n".join(out)
 
 
-def format_history(koan, last_n=3):
-    if not koan["history"]:
-        return "（这是第一次参它）"
-    out = []
-    for h in koan["history"][-last_n:]:
-        out.append(f"[第{h['round']}轮·{h['date']}] {h['verdict']}: {h['summary']}")
-    return "\n".join(out)
-
-
 def synthesize(koan, attacks):
     body = "\n\n".join(f"【{name}】\n{text}" for name, text in attacks)
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
@@ -294,7 +284,7 @@ def main():
         koans = load_koans()
         koan = pick_alive(koans)
         if koan is None:
-            print("[参] 所有疑皆已参尽(已证/暂搁)。静待世界给新料。参到尽则歇。", file=sys.stderr)
+            print("[参] 所有疑皆已暂搁。静待世界给新料。参到尽则歇。", file=sys.stderr)
             break
 
         round_no += 1
@@ -380,8 +370,8 @@ def main():
             koan["status"] = "暂搁"; koan["pause_reason"] = "cap"
             print(f"     ⏹ 参满 {ATTEMPT_CAP} 轮硬上限, 强制『暂搁』(防表演深刻, 该换话头)", file=sys.stderr)
 
-        # 证: 一个话头转暂搁/已证时, 收成 —— 内化 + 蒸馏 + 札记
-        if koan["status"] in ("暂搁", "已证"):
+        # 证: 一个话头转暂搁时, 收成 —— 内化 + 蒸馏 + 札记
+        if koan["status"] == "暂搁":
             realize_mod.realize(koan)
             # 回头闸: 记下此刻的内化次数(眼睛基线)。日后必须又内化够多(眼睛真变了)才回参。
             st = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))

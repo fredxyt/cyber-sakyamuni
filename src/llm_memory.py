@@ -43,7 +43,7 @@ def _linked_concepts(note_text):
 
 
 def read_full_wiki():
-    """整个内在记忆: 目录 + 所有概念页全文。给 consolidate(内化)/今日 用 —— 要织全网, 看全自我。"""
+    """整个内在记忆: 目录 + 所有概念页全文。给 consolidate(内化) 用 —— 要织全网, 看全自我。"""
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
     parts = ["【内在记忆 · 目录】\n" + read_index()]
     for f in sorted(LLM_WIKI.glob("*.md")):
@@ -120,18 +120,6 @@ def _update_index(concept, note):
     pat = rf"- \[\[{re.escape(concept)}\]\].*"
     idx = re.sub(pat, line, idx) if re.search(pat, idx) else idx.rstrip() + "\n" + line + "\n"
     INDEX.write_text(idx, encoding="utf-8")
-
-
-def count_references(concept):
-    """回头机制: 数【其他概念页】有多少次 [[这个概念]]。
-    被反复触及 = 这个老疑积攒了新角度, 该带新眼睛重参。"""
-    n = 0
-    for f in LLM_WIKI.glob("*.md"):
-        if f.stem == concept or f.name == "index.md":
-            continue
-        if f"[[{concept}]]" in _read(f):
-            n += 1
-    return n
 
 
 def seed_from_human_pages():

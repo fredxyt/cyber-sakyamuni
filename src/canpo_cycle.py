@@ -3,10 +3,10 @@
 参悟一次心跳 — 供 cron 拉起。DeepSeek 当大脑。
 
 一次 cycle:
-  1. 确保有活话头 — 没有就 birth_koan() 从世界苦×佛法孕育
-  2. 参 — contemplate_loop 跑 N 轮 (带佛法检索 + 硬上限)
+  1. 确保有活话头 — 没有就 birth_koan() 从世界苦×佛法孕育, 或回头重参眼界已变的老疑
+  2. 参 — contemplate_loop 跑 N 轮 (带佛法检索 + 硬上限; 暂搁时即在其内"证": 内化+蒸馏+札记)
   3. 重建 site.json
-(証·写回 Neo4j 暂不在此 cycle — 先测试标签验证, 见 canpo-realize)
+(它的领悟只留在自己的世界, 不写回 P2 语料池 —— 决策A)
 
 用法 (cron):
   DEEPSEEK_API_KEY=... python src/canpo_cycle.py --rounds 6
@@ -15,7 +15,10 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+from io_util import write_json_atomic
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
@@ -48,7 +51,6 @@ def try_reactivate(min_grew=8):
     best["no_move_streak"] = 0
     best["attempts"] = 0
     best["source"] = best.get("source", "") + f" ·【回头】自暂搁起又内化{best_grew}次, 带新眼睛重参"
-    from io_util import write_json_atomic
     write_json_atomic(KOANS, d)
     print(f"[心跳] 回头: 重参老疑「{best.get('concept')}」(眼睛变了{best_grew}次, 暂搁因={best.get('pause_reason','?')}, 换皮{best.get('recycle_count',0)}次)", file=sys.stderr)
     return True
@@ -85,12 +87,10 @@ def main():
     run("build_site.py")
 
     # 4. 推进 cycle 计数 + last
-    from datetime import datetime, timezone
     st_path = ROOT / "data" / "state" / "cultivation.json"
     st = json.loads(st_path.read_text(encoding="utf-8"))
     st["cycle"] = st.get("cycle", 0) + 1
     st["last_cultivation_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    from io_util import write_json_atomic
     write_json_atomic(st_path, st)
     print(f"[心跳] —— 完 (cycle {st['cycle']}) ——", file=sys.stderr)
 

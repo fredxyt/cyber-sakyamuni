@@ -11,10 +11,3 @@ def write_json_atomic(path, obj):
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, path)   # 同盘 rename 原子: 要么旧的完整, 要么新的完整, 永不半截
-
-
-def write_text_atomic(path, text):
-    path = Path(path)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)

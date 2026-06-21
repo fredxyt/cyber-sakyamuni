@@ -138,13 +138,6 @@ def main():
             })
     chronicle.sort(key=lambda c: c["sort"], reverse=True)   # 重排, stub 按日期落位(今天的在最前)
 
-    # 概念状态兜底: 概念页 frontmatter 可能没写 status, 从对应话头推导 (已证/否则仍疑)
-    _koan_status = {}
-    for k in json.loads(KOANS.read_text(encoding="utf-8")).get("koans", []):
-        c = k.get("concept", "")
-        if c and _koan_status.get(c) != "已证":
-            _koan_status[c] = "已证" if k.get("status") == "已证" else "仍疑"
-
     # 概念 (义理门) — 带困惑史 + 它的片刻(归位的原始反思)
     concepts = []
     for f in sorted((WIKI / "concepts").glob("*.md")):
@@ -163,7 +156,7 @@ def main():
             w["label"] = f"第 {i + 1} 层" + (f" · {disp}" if ts else "")
         concepts.append({
             "name": f.stem,
-            "status": fm.get("status") or _koan_status.get(f.stem, "仍疑"),
+            "status": fm.get("status") or "仍疑",   # 永远仍疑: 没有"已证"状态
             "sources": sources,
             "understanding": section(body, "现在我的理解"),
             "understanding_history": parse_evolution(section(body, "理解的演变")),
@@ -231,20 +224,8 @@ def main():
         unengaged = [a for a in apps if not _engaged(a["app"])]
         for a in engaged + unengaged[:20]:
             yingshi.append(_ymake(a["app"], a["n"]))
-    except Exception as e:                          # fallback: 仅用类别+数量(不读原文)
-        print(f"[build_site] 应世退回快照: {str(e)[:60]}")
-        import csv as _csv
-        cmap = {}
-        for f in sorted((ROOT / "data" / "sources").glob("week_questions_*.txt")):
-            with open(f, encoding="utf-8") as fh:
-                for row in _csv.reader(fh):
-                    if len(row) < 2 or row[1].strip().strip('"') in ("app", ""):
-                        continue
-                    cmap.setdefault(row[1].strip().strip('"').strip(), []).append(1)
-        suffering_total = sum(len(v) for v in cmap.values())
-        suffering_types = len(cmap)
-        for cat, texts in sorted(cmap.items(), key=lambda x: -len(x)):
-            yingshi.append(_ymake(cat, len(texts)))
+    except Exception as e:   # Neo4j 不可达: 应世留空(已初始化为空), 不阻塞其余构建, 下次心跳恢复
+        print(f"[build_site] 应世跳过(Neo4j 不可达): {str(e)[:60]}")
 
     # 覆盖台账: 已参 N / 全量 M 类世界的苦
     cov_f = ROOT / "data" / "state" / "coverage.json"

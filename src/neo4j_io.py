@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-参悟 ↔ Neo4j 的桥。结束"孤岛"——让参悟有源头活水，且洞见能回流。
+参悟 ↔ Neo4j 的桥。结束"孤岛"——让参悟有源头活水。
 
-三个方向:
-  read_new_suffering()  闻: 拉 watermark 之后 P2 新灌入的世界苦 (纯 cypher, 增量)
-  retrieve_dharma()     闻: 给一个话头/疑, GraphRAG 检索相关佛法切片 (充分利用 154k chunk)
-  write_realization()   证: 把稳定的洞见写回 Neo4j, 成为这颗心自己的理解节点
+两个方向 (都是"闻"):
+  read_new_suffering()  拉 watermark 之后 P2 新灌入的世界苦 (纯 cypher, 增量)
+  retrieve_dharma()     给一个话头/疑, GraphRAG 检索相关佛法切片 (充分利用 154k chunk)
 
 Neo4j 在服务器上, 本地经 ssh + docker exec cypher-shell 访问 (连接信息在 cultivation.json)。
 同一套代码在服务器上直接跑也成立 (cypher-shell 直连)。
@@ -42,7 +41,7 @@ def _sh(remote_cmd: str, timeout: int = 180, input_data: str = None):
 
 def embed(texts):
     """文本 → gemini-embedding (3072维, 服务器上算, 复用 dharma 同一向量空间)。
-    返回 [[float,...], ...]。话头语义去重用。"""
+    返回 [[float,...], ...]。话头/洞见语义去重用 (孕育去重 + 新颖度闸)。"""
     remote = (   # 跑本仓库 vendored 的开源脚本(借 fdz2025 的 venv 拿库 + .env.gemini 拿key)
         "cd /home/ubuntu/cyber-sakyamuni && source /home/ubuntu/fdz2025/.venv/bin/activate && "
         "source /home/ubuntu/fdz2025/.env.gemini && python tools/embed_text.py"
@@ -144,22 +143,6 @@ def retrieve_dharma(query_text: str, k: int = 5):
         if line.startswith("["):
             return json.loads(line)
     return []
-
-
-# ── 证: 洞见写回 Neo4j (让 P2/P3 用上参悟成果) ──
-def write_realization(concept: str, insight: str, cycle: int):
-    """证·写回: 洞见嵌入并写成 :CanpoRealization (隔离标签, P2 暂看不见)。
-    服务器端 dharma_writeback.py 做 embedding + 入图; 验证好后 golive 才进 P2 索引。"""
-    text = insight.replace('"', "'").replace("\n", " ").strip()[:1500]
-    remote = (
-        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
-        "source .env.gemini && source .env.neo4j && export PYTHONPATH=/home/ubuntu/fdz2025 && "
-        f'printf %s "{text}" | python scripts/tools/dharma_writeback.py write "{concept}" {cycle}'
-    )
-    out = _sh(remote, timeout=120)
-    if out.returncode != 0:
-        raise RuntimeError(f"写回失败: {out.stderr[:200]}")
-    return out.stdout.strip()
 
 
 def _split_plain(line: str):
