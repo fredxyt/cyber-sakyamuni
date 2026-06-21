@@ -37,6 +37,16 @@ WIKI = ROOT / "data" / "memory" / "wiki"
 NO_MOVE_LIMIT = 4   # 参 4 轮没【真】往前 → 暂搁 (严判下"动"本就少, 给足突破机会再歇)
 ATTEMPT_CAP = 16    # 硬上限: 参满 16 轮强制暂搁 (实测真推进在前~14轮, 30太宽只会换皮打转)
 PLATEAU_FLOOR = 8   # 自觉"到段落"最早允许的轮数 —— 防参1-2轮就早早自封"凿不动了", 强制先深参
+NOVELTY_SIM = 0.90  # 语义新颖度闸: 新洞见与某条旧洞见 embedding 余弦≥此值 = 换皮, 代码判没动
+                    # (举证字段只能查"填没填",查不了"真新没新";embedding 直接量语义距离,堵编假delta+压缩区盲点)
+
+
+def _cosine(a, b):
+    s = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return s / (na * nb) if na and nb else 0.0
+
 
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 SUTRA = (ROOT / "data" / "canon" / "心经.md").read_text(encoding="utf-8")
@@ -193,6 +203,21 @@ def synthesize(koan, attacks):
     if dodged or (no_delta and no_surpass):
         v["moved"] = False
         v["insight"] = ""
+    # 语义新颖度闸: 过了举证关, 再用 embedding 直接验"这洞见到底新没新" —— 堵死"编个听着像具体区分的假delta"
+    # (举证字段只查得了非空,查不了真新; embedding 量语义距离, 且比的是全部旧洞见【全文】, 不受压缩区盲点影响)
+    if v.get("moved") and v.get("insight") and neo4j_io is not None:
+        priors = [h["insight"] for h in koan["history"] if h.get("verdict") == "动" and h.get("insight")]
+        if priors:
+            try:
+                embs = neo4j_io.embed([v["insight"]] + priors)
+                sim = max(_cosine(embs[0], pe) for pe in embs[1:])
+                if sim >= NOVELTY_SIM:
+                    v["moved"] = False
+                    v["insight"] = ""
+                    v["summary"] = f"(换皮: 新洞见与旧洞见语义重合 {sim:.2f}≥{NOVELTY_SIM})"
+                    print(f"     ⊘ 语义新颖度闸: 与旧洞见重合 {sim:.2f} → 判换皮(未动)", file=sys.stderr)
+            except Exception as e:
+                print(f"     (新颖度闸 embedding 暂不可用, 退回举证闸: {str(e)[:40]})", file=sys.stderr)
     return v
 
 
