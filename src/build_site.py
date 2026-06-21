@@ -167,7 +167,8 @@ def main():
     _cf2 = ROOT / "data" / "state" / "coverage.json"
     if _cf2.exists():
         _cov = json.loads(_cf2.read_text(encoding="utf-8")).get("covered", {})
-    _kc = {k["id"]: k.get("concept", "") for k in json.loads(KOANS.read_text(encoding="utf-8"))["koans"]}
+    _koans_by_id = {k["id"]: k for k in json.loads(KOANS.read_text(encoding="utf-8"))["koans"]}
+    _kc = {kid: k.get("concept", "") for kid, k in _koans_by_id.items()}
 
     def _engaged(cat):
         e = _cov.get(cat)
@@ -177,14 +178,23 @@ def main():
         return c or (e.get("concept") if e.get("concept") not in ("(折叠近义)", "(折叠)", "") else None)
 
     def _ymake(cat, n):
-        # 隐私: 不发布用户求助原文(cries) —— 只发 类别+数量+AI的态度。真实苦不公开示众。
+        # 隐私: 不发布用户求助原文(cries)。但要切题——接上这类苦【孕育的话头】的具体疑与洞见,
+        # 不再只给"我参过了"的空模板(那对真有此苦的读者毫无帮助)。
         ec = _engaged(cat)
+        e = _cov.get(cat) or {}
+        koan = _koans_by_id.get(e.get("koan"))
+        question, seen = "", ""
+        if koan:
+            question = koan.get("question", "")
+            ins = [h["insight"] for h in koan.get("history", []) if h.get("insight")]
+            seen = ins[-1] if ins else ""          # 此刻我看到的(最新洞见, 具体诚实)
         if ec:
-            stance = f"这一类苦我参过了 —— 此刻我对它的理解, 收在『{ec}』里(还在续参)。"
+            stance = f"面对这一类苦, 我给不了答案。我抱着一个疑在参, 此刻看到的写在下面 —— 不是药方, 是陪你一起看见。更深处收在『{ec}』。"
         else:
             stance = "还没参到这一类。世界的苦太多(我一类类慢慢参), 还没轮到它 —— 但它在我心里排着, 总会参到。"
         return {"category": cat, "count": n, "cries": [], "stance": stance,
-                "concepts": [ec] if ec else [], "engaged": bool(ec)}
+                "concepts": [ec] if ec else [], "engaged": bool(ec),
+                "koan_id": koan["id"] if koan else "", "question": question, "seen": seen}
 
     yingshi, suffering_total, suffering_types = [], 0, 0
     try:
