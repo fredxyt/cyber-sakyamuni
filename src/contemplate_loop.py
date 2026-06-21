@@ -287,16 +287,19 @@ def case_pair_shadow(koan, v, world_rows):
     if not old:
         return {"has_pair": None, "note": "首条洞见, 无旧洞见可比"}
     cases = list(world_rows or [])
-    if not cases and neo4j_io is not None:
+    if len(cases) < 6 and neo4j_io is not None:   # 池子太薄就按 app 补够(limit加大), 防 case 不足/空池
         try:
             apps = koan.get("apps") or ([koan["app"]] if koan.get("app") else [])
+            seen = {c.get("text") for c in cases}
             for a in apps[:4]:
-                cases += neo4j_io.read_suffering_by_app(a, limit=4)
+                for r in neo4j_io.read_suffering_by_app(a, limit=8):
+                    if r.get("text") and r["text"] not in seen:
+                        cases.append(r); seen.add(r["text"])
         except Exception:
             pass
     if not cases:
-        return {"has_pair": None, "note": "Neo4j 不可达, 无 case 可取(infra 抖动)"}
-    numbered = "\n".join(f"[{i + 1}] {c.get('text', '')}" for i, c in enumerate(cases[:8]))
+        return {"has_pair": None, "note": "无 case 可取(无 app 或 Neo4j 不可达)"}
+    numbered = "\n".join(f"[{i + 1}] {c.get('text', '')}" for i, c in enumerate(cases[:10]))
     old_text = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(old))
     system = ("你在做严格鉴别: 一个'新洞见'相对'旧洞见'是真往前、还是换皮(把旧的重说一遍)。"
               "唯一标准: 新洞见能不能在真实人间 case 里, 切开旧洞见分不开的一对。")
