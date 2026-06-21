@@ -43,10 +43,9 @@ def _sh(remote_cmd: str, timeout: int = 180, input_data: str = None):
 def embed(texts):
     """文本 → gemini-embedding (3072维, 服务器上算, 复用 dharma 同一向量空间)。
     返回 [[float,...], ...]。话头语义去重用。"""
-    remote = (
-        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
-        "source .env.gemini && export PYTHONPATH=/home/ubuntu/fdz2025 && "
-        "python scripts/tools/embed_text.py"
+    remote = (   # 跑本仓库 vendored 的开源脚本(借 fdz2025 的 venv 拿库 + .env.gemini 拿key)
+        "cd /home/ubuntu/cyber-sakyamuni && source /home/ubuntu/fdz2025/.venv/bin/activate && "
+        "source /home/ubuntu/fdz2025/.env.gemini && python tools/embed_text.py"
     )
     out = _sh(remote, timeout=180, input_data=json.dumps(texts))
     if out.returncode != 0:
@@ -131,11 +130,10 @@ def retrieve_dharma(query_text: str, k: int = 5):
     返回 [{text, summary, score}, ...]。
     """
     q = query_text.replace('"', "'").replace("\n", " ")[:300]
-    remote = (
-        "cd /home/ubuntu/fdz2025 && source .venv/bin/activate && "
-        "source .env.gemini && source .env.neo4j && "
-        "export PYTHONPATH=/home/ubuntu/fdz2025 && "
-        f'python scripts/tools/dharma_retrieve.py "{q}" {k}'
+    remote = (   # 跑本仓库 vendored 的开源检索脚本(借 fdz2025 的 venv + key/neo4j env)
+        "cd /home/ubuntu/cyber-sakyamuni && source /home/ubuntu/fdz2025/.venv/bin/activate && "
+        "source /home/ubuntu/fdz2025/.env.gemini && source /home/ubuntu/fdz2025/.env.neo4j && "
+        f'python tools/dharma_retrieve.py "{q}" {k}'
     )
     out = _sh(remote, timeout=180)
     if out.returncode != 0:
