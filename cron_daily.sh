@@ -15,12 +15,14 @@ LOG="logs/daily_$(date +%Y%m%d).log"
 
   "$PY" src/daily_note.py
   "$PY" src/build_site.py
+  # 每天把累积的参悟轨迹导成训练集(dpo/sft/trace/cpt); 输出在 data/traces/_export/(gitignored)。失败不阻断当日提交。
+  "$PY" tools/export_traces.py || echo "[$(date -u +%FT%TZ)] 训练集导出失败, 不阻断。"
 
   if [ -n "$(git status --porcelain)" ]; then
     git add -A
-    # 隐私守门(双保险): 轨迹含 P2 真人苦诉, 进暂存区即中止
+    # 守门: 轨迹是原始日志(体量大), 该留本地; 误入暂存区即中止
     if git diff --cached --name-only | grep -q '^data/traces/'; then
-      echo "🚨 traces 进入暂存区(含P2隐私), 中止提交。" >&2
+      echo "🚨 traces 误入暂存区(原始日志, 该留本地), 中止提交。" >&2
       git reset -q; exit 0
     fi
     git -c user.name="cyber-sakyamuni" -c user.email="noreply@anthropic.com" \

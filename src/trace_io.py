@@ -1,6 +1,6 @@
 """参悟轨迹无损落盘 —— 纯观察: 接收已算好的数据, 不重算/不改判, 从不写回 v/koan。
 fail-open: 任何异常吞掉, 绝不抛回心跳。
-隐私: 写 data/traces/raw/ (gitignored, 含 P2 真人苦原文, 绝不入库/分发)。
+落盘 data/traces/raw/ (gitignored —— 因体量大且属原始日志, 不进公开仓库; P2 是 Gemini 合成的"一类苦"画像非真人, 无隐私问题)。
 schema 与设计见 docs/trace-recording-design.md。为日后微调/训练(DPO/SFT/trace/CPT)准备。
 """
 import json
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = ROOT / "data" / "traces" / "raw"            # 红区: 含真人原文, gitignored
+RAW_DIR = ROOT / "data" / "traces" / "raw"            # 原始轨迹, gitignored(体量大, 非隐私)
 CULT = ROOT / "data" / "state" / "cultivation.json"
 SCHEMA_VERSION = 1
 _A_ANGLES = {"经", "解"}
@@ -75,7 +75,7 @@ def build_trace(koan, attempt, stamp, *, canon, srcs, chunks, memory, apps,
             "canon_chunks": chunks or [],            # 命中时存全文; 退回时 []
             "canon_fallback": None if chunks else "SUTRA",
             "dharma_sources": srcs or [],
-            "world": {"privacy": "P0_REAL_PERSON",   # 硬标记: 真人苦原文, 脱敏/拒导依据
+            "world": {"kind": "synthetic_gemini",   # Gemini 从公开媒体趋势合成的"一类苦"画像, 非真人, 无需脱敏
                       "apps": (apps or [])[:4],
                       "rows": world_rows or []},
         },
