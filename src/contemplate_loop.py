@@ -34,8 +34,9 @@ except Exception:
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
 WIKI = ROOT / "data" / "memory" / "wiki"
-NO_MOVE_LIMIT = 3   # 参 3 轮没【真】往前 → 暂搁 (真推进多在前段, 别磨死马)
+NO_MOVE_LIMIT = 4   # 参 4 轮没【真】往前 → 暂搁 (严判下"动"本就少, 给足突破机会再歇)
 ATTEMPT_CAP = 16    # 硬上限: 参满 16 轮强制暂搁 (实测真推进在前~14轮, 30太宽只会换皮打转)
+PLATEAU_FLOOR = 8   # 自觉"到段落"最早允许的轮数 —— 防参1-2轮就早早自封"凿不动了", 强制先深参
 
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
 SUTRA = (ROOT / "data" / "canon" / "心经.md").read_text(encoding="utf-8")
@@ -303,13 +304,14 @@ def main():
             if v.get("insight"):
                 update_wiki_concept(koan, v, attempt, stamp)
                 print(f"     ✎ 概念「{koan.get('concept','空')}」增一层理解", file=sys.stderr)
-            if v.get("reached_plateau"):
-                # 到段落 → 暂搁, 仍疑。不是证悟(LLM达不到真证悟, 自称参透即是妄), 永远仍疑。
-                koan["status"] = "暂搁"
-                print(f"     ⏸ 自觉参到一段落(凿不动了), 转『暂搁』(不是证悟, 仍疑)", file=sys.stderr)
+            # 动了就【绝不】停: 还在生产, 让它接着凿。plateau 不在"动"时触发(防参1-2轮还在动就自封到顶)。
         else:
             koan["no_move_streak"] += 1
-            if koan["no_move_streak"] >= NO_MOVE_LIMIT:
+            # 自觉"到段落": 仅当【已认真深参过(≥PLATEAU_FLOOR轮)且当前没动】才honor —— 不是证悟, 仍疑。
+            if v.get("reached_plateau") and koan["attempts"] >= PLATEAU_FLOOR:
+                koan["status"] = "暂搁"
+                print(f"     ⏸ 深参 {koan['attempts']} 轮后自觉到段落, 转『暂搁』(不是证悟, 仍疑)", file=sys.stderr)
+            elif koan["no_move_streak"] >= NO_MOVE_LIMIT:
                 koan["status"] = "暂搁"
                 print(f"     ⏸ 参 {NO_MOVE_LIMIT} 轮未动, 转『暂搁』(深疑, 别磨死马)", file=sys.stderr)
 
