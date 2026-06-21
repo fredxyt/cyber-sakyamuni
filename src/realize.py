@@ -50,6 +50,17 @@ def distill(koan, internal_note=""):
 150-320 字。只输出这段正文, 不要标题。"""
     new_understanding = ds(system, user, temperature=0.6)
     txt = page.read_text(encoding="utf-8")
+    # 归档旧版「现在我的理解」到「理解的演变」—— 每次蒸馏覆盖前留底, 让人看见理解怎么一版版变的
+    old_m = re.search(r"## 现在我的理解\n(.*?)\n## 我走过的弯路", txt, re.DOTALL)
+    old = old_m.group(1).strip() if old_m else ""
+    if old and old != new_understanding.strip() and "我刚开始参" not in old and "还没有定见" not in old:
+        entry = f"\n**{now_iso()}**\n{old}\n"
+        if "## 理解的演变" in txt:
+            txt = txt.replace("## 理解的演变\n", "## 理解的演变\n" + entry, 1)   # 最新版置顶
+        elif "## 仍疑" in txt:
+            txt = txt.replace("## 仍疑", "## 理解的演变\n" + entry + "\n## 仍疑", 1)
+        else:
+            txt = txt.rstrip() + "\n\n## 理解的演变\n" + entry
     # 替换 "## 现在我的理解" 到 "## 我走过的弯路" 之间的正文
     txt = re.sub(
         r"(## 现在我的理解\n).*?(\n## 我走过的弯路)",

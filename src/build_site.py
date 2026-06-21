@@ -75,6 +75,16 @@ def parse_wrong_turns(md):
     return items
 
 
+def parse_evolution(md):
+    """「理解的演变」: 历版"现在我的理解"快照 (蒸馏覆盖前留底), 最新在前。→ [{date, text}]"""
+    out = []
+    for m in re.finditer(r"\*\*([^*]+)\*\*\s*\n(.*?)(?=\n\*\*[^*]+\*\*|\Z)", md or "", re.DOTALL):
+        t = m.group(2).strip()
+        if t:
+            out.append({"date": m.group(1).strip(), "text": t})
+    return out
+
+
 def main():
     # 年谱 (chronicle) — 脊柱只放【今日】(产品, 一天一篇) + 诞生(钉底)。
     # 片刻(话头暂搁时的原始反思)不上年谱, 归到它所属概念页里(困惑史旁), 免得刷屏混排。
@@ -144,6 +154,7 @@ def main():
             "status": fm.get("status") or _koan_status.get(f.stem, "仍疑"),
             "sources": sources,
             "understanding": section(body, "现在我的理解"),
+            "understanding_history": parse_evolution(section(body, "理解的演变")),
             "wrong_turns": wt,
             "doubt": section(body, "仍疑"),
             "moments": moments_by_concept.get(f.stem, []),
@@ -237,11 +248,13 @@ def main():
         days_alive = (datetime.now(timezone.utc).date() - _date(by, bm, bd)).days + 1
     except Exception:
         pass
+    _total_moments = sum(len(ms) for ms in moments_by_concept.values())
     vitals = {
         "days": days_alive,
         "covered": coverage["covered"], "total": coverage["total"],
         "reactivations": sum(1 for k in raw_koans if "【回头】" in k.get("source", "")),
-        "notes": len(chronicle),
+        "notes": len(chronicle),                                # 旧字段(daily+诞生), 保留兼容
+        "written": len(chronicle) + _total_moments,             # 真实写作量: 札记 + 参详(片刻)
     }
 
     # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
