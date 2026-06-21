@@ -10,3 +10,4 @@ data/sources/*.raw
 *.pem
 data/state/cov_emb.json
 logs/
+data/state/insight_emb.json

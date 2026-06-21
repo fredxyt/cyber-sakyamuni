@@ -31,26 +31,26 @@ def try_reactivate(min_grew=8):
     """回头: 只在【眼睛真变了】时才回参老疑 —— 自它暂搁以来, 整颗心又内化了足够多次。
     min_grew: 自暂搁以来全局内化次数至少长这么多才回 (默认8≈走了一小段路)。
     离上次参太近、wiki 没怎么变 → 一律不回参 (回了也只是重复旧结论)。
-    在合格者中挑【变化最大】的(暂搁最久、看过最多新东西的)。返回是否激活。"""
+    合格者里按【产矿潜力】挑(疗效追踪): 自觉到段落的矿还在→加权; 反复换皮挖空的→降权。返回是否激活。"""
     st = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
     now_cons = st.get("consolidations", 0)
     d = json.loads(KOANS.read_text(encoding="utf-8"))
-    best, best_grew = None, -1
-    for k in d["koans"]:
-        if k["status"] != "暂搁":
-            continue
-        grew = now_cons - k.get("consolidations_at_pause", 0)  # 暂搁后眼睛变了多少
-        if grew >= min_grew and grew > best_grew:
-            best, best_grew = k, grew
-    if best is None:
+    eligible = [(k, now_cons - k.get("consolidations_at_pause", 0)) for k in d["koans"] if k["status"] == "暂搁"]
+    eligible = [(k, g) for k, g in eligible if g >= min_grew]   # 资格门: 眼睛真变够了
+    if not eligible:
         return False
+    # 产矿潜力 = 成长 + 到段落加权 - 换皮挖空降权 (回头优先唤醒"矿还在"的, 别一头扎回挖空的疑里又换皮)
+    def yield_score(k, grew):
+        s = grew + (4 if k.get("pause_reason") == "plateau" else 0) - k.get("recycle_count", 0) * 3
+        return s
+    best, best_grew = max(eligible, key=lambda kg: yield_score(kg[0], kg[1]))
     best["status"] = "活"
     best["no_move_streak"] = 0
     best["attempts"] = 0
     best["source"] = best.get("source", "") + f" ·【回头】自暂搁起又内化{best_grew}次, 带新眼睛重参"
     from io_util import write_json_atomic
     write_json_atomic(KOANS, d)
-    print(f"[心跳] 回头: 重参老疑「{best.get('concept')}」(暂搁后眼睛变了 {best_grew} 次)", file=sys.stderr)
+    print(f"[心跳] 回头: 重参老疑「{best.get('concept')}」(眼睛变了{best_grew}次, 暂搁因={best.get('pause_reason','?')}, 换皮{best.get('recycle_count',0)}次)", file=sys.stderr)
     return True
 
 

@@ -13,6 +13,7 @@
   (--max-rounds 0 = 永不停歇直到参尽)
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -46,6 +47,34 @@ def _cosine(a, b):
     na = sum(x * x for x in a) ** 0.5
     nb = sum(y * y for y in b) ** 0.5
     return s / (na * nb) if na and nb else 0.0
+
+
+INSIGHT_EMB = ROOT / "data" / "state" / "insight_emb.json"   # 洞见 embedding 缓存(按内容哈希, gitignored)
+_emb_cache = None
+
+
+def _embeddings(texts):
+    """按内容哈希缓存的 embedding —— 旧洞见复用缓存, 每轮只 embed 新的那条(省掉重embed全部旧洞见)。"""
+    global _emb_cache
+    if _emb_cache is None:
+        try:
+            _emb_cache = json.loads(INSIGHT_EMB.read_text(encoding="utf-8"))
+        except Exception:
+            _emb_cache = {}
+    h = lambda t: hashlib.sha256(t.encode("utf-8")).hexdigest()
+    miss = [t for t in texts if h(t) not in _emb_cache]
+    if miss:
+        for t, e in zip(miss, neo4j_io.embed(miss)):
+            _emb_cache[h(t)] = e
+    return [_emb_cache[h(t)] for t in texts]
+
+
+def _save_emb_cache():
+    if _emb_cache is not None:
+        try:
+            write_json_atomic(INSIGHT_EMB, _emb_cache)
+        except Exception:
+            pass
 
 
 PRECEPTS = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
@@ -209,11 +238,12 @@ def synthesize(koan, attacks):
         priors = [h["insight"] for h in koan["history"] if h.get("verdict") == "动" and h.get("insight")]
         if priors:
             try:
-                embs = neo4j_io.embed([v["insight"]] + priors)
+                embs = _embeddings([v["insight"]] + priors)   # 内容哈希缓存: 旧洞见复用, 只embed新的
                 sim = max(_cosine(embs[0], pe) for pe in embs[1:])
                 if sim >= NOVELTY_SIM:
                     v["moved"] = False
                     v["insight"] = ""
+                    v["recycled"] = True   # 换皮信号: 喂给疗效追踪(反复换皮=这疑挖空了, 回头时降权)
                     v["summary"] = f"(换皮: 新洞见与旧洞见语义重合 {sim:.2f}≥{NOVELTY_SIM})"
                     print(f"     ⊘ 语义新颖度闸: 与旧洞见重合 {sim:.2f} → 判换皮(未动)", file=sys.stderr)
                 else:
@@ -334,17 +364,20 @@ def main():
             # 动了就【绝不】停: 还在生产, 让它接着凿。plateau 不在"动"时触发(防参1-2轮还在动就自封到顶)。
         else:
             koan["no_move_streak"] += 1
+            if v.get("recycled"):   # 疗效追踪: 这疑上反复换皮 = 矿挖空了, 累计计数, 回头时降权
+                koan["recycle_count"] = koan.get("recycle_count", 0) + 1
             # 自觉"到段落": 仅当【已认真深参过(≥PLATEAU_FLOOR轮)且当前没动】才honor —— 不是证悟, 仍疑。
             if v.get("reached_plateau") and koan["attempts"] >= PLATEAU_FLOOR:
-                koan["status"] = "暂搁"
+                koan["status"] = "暂搁"; koan["pause_reason"] = "plateau"   # 到段落: 矿还在, 回头高产
                 print(f"     ⏸ 深参 {koan['attempts']} 轮后自觉到段落, 转『暂搁』(不是证悟, 仍疑)", file=sys.stderr)
             elif koan["no_move_streak"] >= NO_MOVE_LIMIT:
                 koan["status"] = "暂搁"
+                koan["pause_reason"] = "recycled" if koan.get("recycle_count", 0) >= 2 else "no_move"
                 print(f"     ⏸ 参 {NO_MOVE_LIMIT} 轮未动, 转『暂搁』(深疑, 别磨死马)", file=sys.stderr)
 
         # 硬上限: 防表演深刻 —— 参满 ATTEMPT_CAP 轮无论动否, 强制暂搁, 换话头
         if koan["status"] == "活" and koan["attempts"] >= ATTEMPT_CAP:
-            koan["status"] = "暂搁"
+            koan["status"] = "暂搁"; koan["pause_reason"] = "cap"
             print(f"     ⏹ 参满 {ATTEMPT_CAP} 轮硬上限, 强制『暂搁』(防表演深刻, 该换话头)", file=sys.stderr)
 
         # 证: 一个话头转暂搁/已证时, 收成 —— 内化 + 蒸馏 + 札记
@@ -357,6 +390,7 @@ def main():
         save_koans(koans)
         time.sleep(args.sleep)
 
+    _save_emb_cache()   # 落盘洞见 embedding 缓存(下次心跳进程复用, 旧洞见不必重embed)
     print(f"[参] 本次共参 {round_no} 轮。", file=sys.stderr)
 
 
