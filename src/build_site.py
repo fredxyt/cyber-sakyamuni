@@ -213,7 +213,11 @@ def main():
         apps = neo4j_io.list_applications()        # 全部类(按苦量降序) + 数量 (1次查询, 不取原文)
         suffering_total = sum(a["n"] for a in apps)
         suffering_types = len(apps)
-        for a in apps[:60]:                        # 1964类太多, 列最锥心的60类
+        # 参过的(engaged)永远钉住 —— AI 真实参过的内容不因排名波动而消失; 再补一小批当下最锥心的未参类
+        # (未参尾巴收小到20, 否则它随 P2 持续灌入不停重洗, 看着像"内容彻底换了一批")
+        engaged = [a for a in apps if _engaged(a["app"])]
+        unengaged = [a for a in apps if not _engaged(a["app"])]
+        for a in engaged + unengaged[:20]:
             yingshi.append(_ymake(a["app"], a["n"]))
     except Exception as e:                          # fallback: 仅用类别+数量(不读原文)
         print(f"[build_site] 应世退回快照: {str(e)[:60]}")
