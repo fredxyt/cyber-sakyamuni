@@ -14,8 +14,8 @@ client = OpenAI(
 MODEL = os.environ.get("DS_MODEL", "deepseek-v4-pro")
 
 
-def ds(system, user, temperature=0.85, max_tokens=32000, retries=3):
-    """推理模型: max_tokens 给足, 别让 reasoning 饿死答案。
+def ds(system, user, temperature=0.85, max_tokens=64000, retries=3):
+    """推理模型: max_tokens 给足(64k≈参实测最长16倍, 天花板按实际生成计费, 永不饿死 reasoning+答案)。
     重试+指数退避+温度递增 —— 24x7 下 DeepSeek 限流/超时是必发事件, 不能一崩了之。"""
     last = None
     for attempt in range(1, retries + 1):

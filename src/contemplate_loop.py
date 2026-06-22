@@ -178,7 +178,7 @@ def attack(koan, angle_name, angle_prompt, wordcount, canon, memory, world="", s
   (c) 你【放弃或收窄】了之前哪个说法?
 展开推理过程(前提→卡在哪→怎么挪), 不要只丢结论金句; 宁可一个点说透。{wordcount}字。诚实, 锋利。"""
     try:
-        return angle_name, ds(system, user, max_tokens=32000)
+        return angle_name, ds(system, user, max_tokens=64000)
     except Exception as e:   # 单角度哑了不炸全轮, 其余角度+收敛照常
         return angle_name, f"(【{angle_name}】这一角度此刻哑了: {str(e)[:40]})"
 
@@ -232,7 +232,7 @@ def synthesize(koan, attacks):
   "reached_plateau": true/false,
   "summary": "一句话"
 }}"""
-    raw = ds(system, user, temperature=0.2, max_tokens=32000)
+    raw = ds(system, user, temperature=0.2, max_tokens=64000)
     raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
