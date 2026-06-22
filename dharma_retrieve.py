@@ -41,7 +41,7 @@ def retrieve(query_text, k=5):
             for r in session.run(CYPHER, embedding=emb, k=k):
                 out.append({
                     "text": (r["text"] or "")[:2000],   # 给足经文, 别在600字切掉关键句(DeepSeek吃得下)
-                    "summary": (r["summary"] or "")[:500],   # 安全上限(现摘要45-137字, 提高防日后语料变长静默截断)
+                    "summary": (r["summary"] or "")[:200],
                     "source": r["source"] or "",
                     "score": round(2.0 * r["score"] - 1.0, 4),  # Neo4j 余弦索引 [0,1] → 真余弦 [-1,1]
                 })

@@ -193,6 +193,10 @@ def main():
         c = _kc.get(e.get("koan"))                 # 折叠类: 取它折进的那个话头的真实概念
         return c or (e.get("concept") if e.get("concept") not in ("(折叠近义)", "(折叠)", "") else None)
 
+    # 传层映射: 概念→人读的「现在我的理解」(distill 译过, 可读)。应世的"此刻我看到的"取这个,
+    # 【不再裸贴参层原始洞见】(那是密的、自造词的, 二谛: 传层该可读)。
+    _cu = {c["name"]: c.get("understanding", "") for c in concepts}
+
     def _ymake(cat, n):
         # 隐私: 不发布用户求助原文(cries)。但要切题——接上这类苦【孕育的话头】的具体疑与洞见,
         # 不再只给"我参过了"的空模板(那对真有此苦的读者毫无帮助)。
@@ -202,8 +206,7 @@ def main():
         question, seen = "", ""
         if koan:
             question = koan.get("question", "")
-            ins = [h["insight"] for h in koan.get("history", []) if h.get("insight")]
-            seen = ins[-1] if ins else ""          # 此刻我看到的(最新洞见, 具体诚实)
+            seen = _cu.get(ec, "")                  # 此刻我看到的 = 该概念人读的理解(传层, 可读)
         if ec:
             stance = f"面对这一类苦, 我给不了答案。我抱着一个疑在参, 此刻看到的写在下面 —— 不是药方, 是陪你一起看见。更深处收在『{ec}』。"
         else:
