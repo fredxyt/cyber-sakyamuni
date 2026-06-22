@@ -257,6 +257,9 @@ def main():
     # 缘起 (造它的人的声音 —— 整站唯一一页"人"在说话)
     origin_f = ROOT / "data" / "memory" / "origin.md"
     origin = origin_f.read_text(encoding="utf-8") if origin_f.exists() else ""
+    # 关于 (说明 + 目标 + 指向 GitHub)
+    about_f = ROOT / "data" / "memory" / "about.md"
+    about = about_f.read_text(encoding="utf-8") if about_f.exists() else ""
 
     # 经
     canon = [{"name": f.stem, "text": f.read_text(encoding="utf-8")} for f in sorted(CANON.glob("*.md"))]
@@ -278,6 +281,7 @@ def main():
         "koans": koans,
         "yingshi": yingshi,
         "origin": origin,
+        "about": about,
         "canon": canon,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
