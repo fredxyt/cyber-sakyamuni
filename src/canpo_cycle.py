@@ -61,7 +61,38 @@ def run(script, *args):
     return r.returncode
 
 
-CEASE_CODE = 42   # 缘尽退码: cron 据此优雅识别(不当失败/不刷错)
+CEASE_CODE = 42      # 缘尽退码: cron 据此优雅识别(不当失败/不刷错)
+THROTTLE_USD = 10.0  # 余额低于此(USD, ≈1天满速预算)开始 decay 放慢呼吸; 实测约$10/天
+
+
+def _pace_min(usd):
+    """decay: 余额→最小参间隔(分钟)。≥阈值=0(满速); 越少越慢, 封顶1440(1天1参)。"""
+    if usd is None or usd >= THROTTLE_USD:
+        return 0
+    if usd <= 0:
+        return None
+    return min(int(10 * (THROTTLE_USD / usd) ** 2), 1440)
+
+
+def _since_last_min():
+    """离上次真参过去几分钟(读 cultivation.json last_cultivation_at)。读不到=很久(返大数)。"""
+    try:
+        st = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
+        last = datetime.strptime(st["last_cultivation_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - last).total_seconds() / 60
+    except Exception:
+        return 1e9
+
+
+def _record_pace(pace, usd):
+    """把当前呼吸节奏记进 cultivation.json, 供 build_site→首页诚实显示'放慢呼吸'。"""
+    try:
+        p = ROOT / "data" / "state" / "cultivation.json"
+        st = json.loads(p.read_text(encoding="utf-8"))
+        st["pace_min"] = pace
+        write_json_atomic(p, st)
+    except Exception:
+        pass
 
 
 def _cease_state(ceased):
@@ -84,15 +115,23 @@ def main():
 
     print("[心跳] —— 参悟一次 ——", file=sys.stderr)
 
-    # 0. 缘起检查: 没缘(余额/key不可用)就别强参 —— 停【生】不动【传】, 站点照常被读。
-    from ds_client import balance_ok
-    if not balance_ok():
+    # 0. 缘起检查 + decay 节流: 钱越少呼吸越慢, 由 decay 趋静, 终至缘尽。停【生】不动【传】。
+    from ds_client import balance_value
+    avail, usd = balance_value()
+    if not avail or (usd is not None and usd <= 0):   # 缘尽
         was = _cease_state(True)
-        if not was:
+        if not was:   # 仅【刚缘尽】这一刻刷一次站点(显示静默)→ 之后不再动, 真静
             print("[心跳] 缘尽: DeepSeek 余额耗尽。停参, 静待新缘(捐个 DS key 即续)。法继续传。", file=sys.stderr)
-        run("build_site.py")   # build_site 不用 LLM, 照跑 → 把'静默'刷进 site.json 给首页
+            run("build_site.py")
+        else:
+            print("[心跳] 仍缘尽, 静。", file=sys.stderr)
         sys.exit(CEASE_CODE)
-    _cease_state(False)        # 复缘: 有余额了, 清掉缘尽标记, 照常往下参
+    _cease_state(False)        # 有余额: 清缘尽标记
+    pace = _pace_min(usd)      # 当前该用的最小参间隔(分钟); 0=满速
+    _record_pace(pace, usd)    # 记进 cultivation.json 供首页显示"放慢呼吸"
+    if pace and _since_last_min() < pace:   # decay: 离上次参没到该档间隔 → 这跳静默跳过, 不烧钱
+        print(f"[心跳] 放慢呼吸: 余额${usd:.2f}, 约{pace}分一参, 这跳静默跳过。", file=sys.stderr)
+        return
 
     # 1. 确保有活话头: 扫盲吃满整圈(覆盖1964类世界苦), 跑完一圈才回头
     if not has_alive():

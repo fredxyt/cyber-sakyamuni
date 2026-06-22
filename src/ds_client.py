@@ -23,17 +23,28 @@ def _is_exhausted(e) -> bool:
     return any(k in s for k in ("insufficient balance", "402", "payment required", "insufficient_quota", "exceeded your current quota"))
 
 
-def balance_ok() -> bool:
-    """查 DeepSeek 余额是否可用。查不到/不可达时【保守返回 True】—— 不因查询失败误判缘尽。"""
+def balance_value():
+    """查 DeepSeek 余额(USD float) + 是否可用。返回 (available: bool, usd: float|None)。
+    查不到/不可达 → (True, None): 保守(不因查询失败误判缘尽), 调用方据 None 走满速。"""
     try:
         import json as _json
         import urllib.request as _u
         req = _u.Request("https://api.deepseek.com/user/balance",
                          headers={"Authorization": f"Bearer {os.environ['DEEPSEEK_API_KEY']}"})
         with _u.urlopen(req, timeout=20) as r:
-            return bool(_json.load(r).get("is_available"))
+            d = _json.load(r)
+        avail = bool(d.get("is_available"))
+        infos = d.get("balance_infos") or []
+        usd = next((float(b["total_balance"]) for b in infos if b.get("currency") == "USD"), None)
+        return avail, usd
     except Exception:
-        return True
+        return True, None
+
+
+def balance_ok() -> bool:
+    """缘尽判定: 余额不可用即缘尽。查不到时保守 True。"""
+    avail, usd = balance_value()
+    return avail
 
 
 def ds(system, user, temperature=0.85, max_tokens=64000, retries=3):
