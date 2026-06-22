@@ -121,11 +121,11 @@ def main():
     chronicle.sort(key=lambda c: c["sort"], reverse=True)  # 今日按日倒序, 诞生(sort="")钉底
     for ms in moments_by_concept.values():
         ms.sort(key=lambda x: x["id"], reverse=True)
-    # B: 每个「今日」挂上当天的参详笔记(按时间正序, 当天怎么参过来的)
+    # B: 每个「今日」挂上当天的参详笔记(倒序, 最新参的在最前 —— 与年谱逆时序一致, 首页一瞥取最近几则)
     daily_dates = {c["date"] for c in chronicle if c.get("kind") == "daily"}
     for c in chronicle:
         if c.get("kind") == "daily":
-            c["day_moments"] = sorted(moments_by_date.get(c["date"], []), key=lambda x: x["id"])
+            c["day_moments"] = sorted(moments_by_date.get(c["date"], []), key=lambda x: x["id"], reverse=True)
     # 当天还没写今日札记的(如今天白天)——造一个 stub, 让当天参详照样上年谱, 不必等入夜
     # 入夜写了真「今日」后, 同日期的真 daily 会自然顶替(下次构建该日已在 daily_dates, 不再生 stub)
     for date, ms in moments_by_date.items():
@@ -134,7 +134,7 @@ def main():
                 "id": f"day-{date}", "date": date, "kind": "daystub", "cycle": None,
                 "title": "今天还在参 · 今日札记入夜成文", "excerpt": "", "when": date,
                 "sort": date + "~daystub", "markdown": "",
-                "day_moments": sorted(ms, key=lambda x: x["id"]),
+                "day_moments": sorted(ms, key=lambda x: x["id"], reverse=True),
             })
     chronicle.sort(key=lambda c: c["sort"], reverse=True)   # 重排, stub 按日期落位(今天的在最前)
 
