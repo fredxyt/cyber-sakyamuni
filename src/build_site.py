@@ -165,6 +165,19 @@ def main():
             "moments": moments_by_concept.get(f.stem, []),
         })
 
+    # 因陀罗网投影: 从 llm_wiki(脑内)抽每个概念的相关概念邻居, 投到公开页 —— 让脑内织的网在站上可导航。
+    # 只投【图结构】(谁连谁, 双向邻居, 仅限有公开页的), 【不投】参层密理由(二谛: 那是脑子的话)。
+    _llm_wiki = ROOT / "data" / "memory" / "llm_wiki"
+    _cnames = {c["name"] for c in concepts}
+    for c in concepts:
+        lw = _llm_wiki / f"{c['name']}.md"
+        related = []
+        if lw.exists():
+            for m in re.findall(r"\[\[([^\]]+)\]\]", lw.read_text(encoding="utf-8")):
+                if m != c["name"] and m in _cnames and m not in related:
+                    related.append(m)
+        c["related"] = related
+
     # 话头 (仍疑) — 状态 + 参究史
     koans = []
     for k in json.loads(KOANS.read_text(encoding="utf-8")).get("koans", []):
