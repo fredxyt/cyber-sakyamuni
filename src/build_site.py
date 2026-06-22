@@ -100,11 +100,14 @@ def main():
         tm = re.match(r"(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})", f.stem)
         date_m = re.match(r"(\d{4}-\d{2}-\d{2})", f.stem)
         date = (dm.group(1) if dm else date_m.group(1)) if (dm or date_m) else ""
+        qm = re.search(r"<!--Q:(.*?)-->", md, re.DOTALL)   # 当时那一句源疑(快照)
+        md = re.sub(r"<!--Q:.*?-->\s*", "", md, flags=re.DOTALL)  # 从渲染剥掉隐藏标记
         title = re.sub(r"^今日札记[:：·]\s*", "", first_heading(md))  # 去冗余前缀
         _clean = re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE)
         _clean = re.sub(r"^\s*\*.*?\*\s*$", "", _clean, flags=re.MULTILINE)  # 去 *今日·…* / *参「X」之后* 副标题
         exc = excerpt(_clean, 100)
-        entry = {"id": f.stem, "date": date, "title": title, "markdown": md, "excerpt": exc}
+        entry = {"id": f.stem, "date": date, "title": title, "markdown": md, "excerpt": exc,
+                 "question": qm.group(1).strip() if qm else ""}   # 这篇当时参的源疑(只这一条)
         if is_daily:
             chronicle.append({**entry, "kind": "daily", "when": date, "cycle": None,
                               "sort": date + "~daily"})

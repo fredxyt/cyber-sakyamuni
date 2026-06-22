@@ -138,7 +138,8 @@ def write_note(koan):
     title = lines[0].strip().lstrip("#").strip()
     content = lines[1].strip() if len(lines) > 1 else ""
     stamp = now_stamp()
-    md = f"# {title}\n\n*参「{concept}」之后 · {now_iso()}*\n\n{content}\n"
+    q = (koan.get("question", "") or "").replace("\n", " ").strip()   # 当时参的那一句疑, 快照进note(隐藏注释), 供页面只显示对应这条
+    md = f"# {title}\n\n*参「{concept}」之后 · {now_iso()}*\n<!--Q:{q}-->\n\n{content}\n"
     BLOG.mkdir(parents=True, exist_ok=True)
     (BLOG / f"{stamp}.md").write_text(md, encoding="utf-8")
     print(f"     ✎ 札记《{title}》写下 (年谱 +1)", file=sys.stderr)
