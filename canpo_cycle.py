@@ -88,9 +88,11 @@ def main():
     from ds_client import balance_ok
     if not balance_ok():
         was = _cease_state(True)
-        if not was:
+        if not was:   # 仅【刚缘尽】这一刻刷一次站点(显示静默)→ 之后不再动, 真静(否则generated_at每跳变, 缘尽还刷commit)
             print("[心跳] 缘尽: DeepSeek 余额耗尽。停参, 静待新缘(捐个 DS key 即续)。法继续传。", file=sys.stderr)
-        run("build_site.py")   # build_site 不用 LLM, 照跑 → 把'静默'刷进 site.json 给首页
+            run("build_site.py")
+        else:
+            print("[心跳] 仍缘尽, 静。", file=sys.stderr)
         sys.exit(CEASE_CODE)
     _cease_state(False)        # 复缘: 有余额了, 清掉缘尽标记, 照常往下参
 

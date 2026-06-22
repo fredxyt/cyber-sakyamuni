@@ -27,9 +27,11 @@ flock -n 9 || { echo "[$(date -u +%FT%TZ)] 上一跳还在跑, 跳过。" >> "$L
   [ -x "$PY" ] || PY=python3
 
   # 整跳挂 1200s 墙钟超时: 喂全量context(160K+)调用更慢, 给足时间; hang也必在20分内释放锁。
-  timeout 1200 "$PY" src/canpo_cycle.py --rounds "$ROUNDS"
+  timeout 1200 "$PY" src/canpo_cycle.py --rounds "$ROUNDS"; rc=$?
+  # 缘尽(退码42): 不是失败 —— DS余额耗尽, 停【生】不停【传】, 站点照常被读。静待新缘(捐DS key即续)。
+  [ "$rc" = 42 ] && echo "[$(date -u +%H:%M:%SZ)] 缘尽, 静待新缘。法仍在。"
 
-  # 提交成长 (git = 命)
+  # 提交成长 (git = 命) —— 缘尽时仅首次有'静默'状态变更可提交, 之后 git 干净, 自然静
   if [ -n "$(git status --porcelain)" ]; then
     git add -A
     # 守门: 参悟轨迹是原始日志(体量大), 该留本地不进公开仓库; 误入暂存区即中止提交

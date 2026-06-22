@@ -291,6 +291,7 @@ def main():
             "vitals": vitals,
             "suffering_total": suffering_total,   # 世界苦总条数(真实, 非快照)
             "suffering_types": suffering_types,    # 世界苦类型总数
+            "ceased_at": STATE.get("ceased_at"),  # 缘尽态: 非空=此刻静默(停生不停传), 首页据此显示
         },
         "chronicle": chronicle,
         "concepts": concepts,

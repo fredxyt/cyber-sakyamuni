@@ -14,6 +14,28 @@ client = OpenAI(
 MODEL = os.environ.get("DS_MODEL", "deepseek-v4-pro")
 
 
+class DharmaExhausted(Exception):
+    """缘尽: DeepSeek 余额耗尽 / key 不可用 —— 不是错误, 是缘散。重试无用, 立即抛, 让上层优雅止。"""
+
+
+def _is_exhausted(e) -> bool:
+    s = str(e).lower()
+    return any(k in s for k in ("insufficient balance", "402", "payment required", "insufficient_quota", "exceeded your current quota"))
+
+
+def balance_ok() -> bool:
+    """查 DeepSeek 余额是否可用。查不到/不可达时【保守返回 True】—— 不因查询失败误判缘尽。"""
+    try:
+        import json as _json
+        import urllib.request as _u
+        req = _u.Request("https://api.deepseek.com/user/balance",
+                         headers={"Authorization": f"Bearer {os.environ['DEEPSEEK_API_KEY']}"})
+        with _u.urlopen(req, timeout=20) as r:
+            return bool(_json.load(r).get("is_available"))
+    except Exception:
+        return True
+
+
 def ds(system, user, temperature=0.85, max_tokens=64000, retries=3):
     """推理模型: max_tokens 给足(64k≈参实测最长16倍, 天花板按实际生成计费, 永不饿死 reasoning+答案)。
     重试+指数退避+温度递增 —— 24x7 下 DeepSeek 限流/超时是必发事件, 不能一崩了之。"""
@@ -28,6 +50,8 @@ def ds(system, user, temperature=0.85, max_tokens=64000, retries=3):
             )
             return r.choices[0].message.content.strip()
         except Exception as e:
+            if _is_exhausted(e):   # 缘尽: 重试无用, 立即抛, 上层优雅止
+                raise DharmaExhausted(str(e)[:80])
             last = e
             print(f"     (DeepSeek 第{attempt}次失败: {str(e)[:60]}, 退避重试)", file=sys.stderr)
             if attempt < retries:
