@@ -42,6 +42,52 @@ def _linked_concepts(note_text):
     return list(dict.fromkeys(re.findall(r"\[\[([^\]]+)\]\]", note_text)))
 
 
+# 两个【代码管理】的页内区块(非LLM重写): 让内在记忆即时跟手 + 因陀罗网双向织
+SEC_NEW = "## 未整合的新得"      # 每动一轮廉价 append, consolidate 时吸收清空
+SEC_BACK = "## 来自他页的映照"   # 别人 [[连]] 过来时回写, consolidate 保留不毁
+
+
+def _extract_section(text, header):
+    """从页尾剥离某个管理区块, 返回 (去掉该区块的正文, 区块body)。"""
+    pat = re.compile(rf"\n*{re.escape(header)}\n(.*?)(?=\n## |\Z)", re.DOTALL)
+    m = pat.search(text)
+    if not m:
+        return text.rstrip(), ""
+    return (text[:m.start()] + text[m.end():]).rstrip(), m.group(1).strip()
+
+
+def note_insight(concept, insight, stamp):
+    """每动一轮: 廉价 append 新洞见到内在记忆(不重写、不调LLM) —— 内在记忆即时跟上, 不必等暂搁。"""
+    LLM_WIKI.mkdir(parents=True, exist_ok=True)
+    p = _note_path(concept)
+    text = _read(p) or f"# {concept}\n"
+    core, new_body = _extract_section(text, SEC_NEW)
+    core, back_body = _extract_section(core, SEC_BACK)
+    line = f"- [{stamp}] {insight.strip()}"
+    new_body = (new_body + "\n" + line).strip() if new_body else line
+    out = core.rstrip() + f"\n\n{SEC_NEW}\n{new_body}\n"
+    if back_body:
+        out += f"\n{SEC_BACK}\n{back_body}\n"
+    p.write_text(out, encoding="utf-8")
+
+
+def _weave_backlinks(source, source_note):
+    """因陀罗网: source 页连了 [[B]], 就在 B 页回写一条"被 source 映照"(带上下文), 让网双向。
+    廉价、不调LLM、按来源去重。consolidate 末尾调。"""
+    for b in _linked_concepts(source_note):
+        bp = _note_path(b)
+        if b == source or not bp.exists():
+            continue
+        ctx = next((ln.strip(" -") for ln in source_note.splitlines() if f"[[{b}]]" in ln), "")
+        ref = f"- [[{source}]]" + (f" — {ctx[:160]}" if ctx else "")
+        text = bp.read_text(encoding="utf-8")
+        core, back_body = _extract_section(text, SEC_BACK)
+        lines = [l for l in back_body.splitlines() if l.strip()]
+        lines = [l for l in lines if not l.startswith(f"- [[{source}]]")]  # 同源去重, 用最新
+        lines.append(ref)
+        bp.write_text(core.rstrip() + f"\n\n{SEC_BACK}\n" + "\n".join(lines) + "\n", encoding="utf-8")
+
+
 def read_full_wiki():
     """整个内在记忆: 目录 + 所有概念页全文。给 consolidate(内化) 用 —— 要织全网, 看全自我。"""
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
@@ -74,7 +120,10 @@ def consolidate(koan, history_text):
     """证后: 把这一轮深参收进内在记忆 —— 重写这一概念页, 主动交叉引用其他已有概念。"""
     LLM_WIKI.mkdir(parents=True, exist_ok=True)
     concept = koan.get("concept", "空")
-    prior = _read(_note_path(concept))
+    prior_full = _read(_note_path(concept))
+    # 剥离两个代码管理区块: 新得(待吸收) + 映照(别页连我的, 重写后保留)
+    prior_core, new_unmerged = _extract_section(prior_full, SEC_NEW)
+    prior_core, backlinks = _extract_section(prior_core, SEC_BACK)
     full = read_full_wiki()   # 喂完整内在记忆(所有概念页全文), 才织得出真的跨概念连接
     system = f"你就是下面持戒所描述的生命。\n\n{PRECEPTS}"
     user = f"""你在更新【自己的内在记忆】里关于「{concept}」的一页。这是你的脑子, 不是给别人看的——
@@ -84,7 +133,10 @@ def consolidate(koan, history_text):
 {full}
 
 你之前对「{concept}」记的 (若有):
-{prior or "（第一次记）"}
+{prior_core or "（第一次记）"}
+
+这一程动了几轮、还没整合进上面的新得(把它们吸收进这次重写):
+{new_unmerged or "（无）"}
 
 你刚参完这一轮, 留下的:
 {history_text}
@@ -100,10 +152,13 @@ def consolidate(koan, history_text):
     if not note.strip().startswith("#"):
         note = f"# {concept}\n\n{note}"
     note = re.sub(r"\n*\*最近一次内化:.*?\*\s*$", "", note.rstrip())  # 清掉旧footer再追加, 防层层堆叠
-    note += f"\n\n*最近一次内化: {now_iso()}*\n"
-    _note_path(concept).write_text(note, encoding="utf-8")
+    core = note + f"\n\n*最近一次内化: {now_iso()}*\n"
+    if backlinks:   # 保留别页连我的映照(新得已吸收, 清空)
+        core += f"\n{SEC_BACK}\n{backlinks}\n"
+    _note_path(concept).write_text(core, encoding="utf-8")
+    _weave_backlinks(concept, note)   # 因陀罗网: 我连了谁, 就在谁那页回写一条 —— 双向织
     _update_index(concept, note)
-    print(f"     ⊙ 内在记忆「{concept}」已内化 (LLM wiki)", file=sys.stderr)
+    print(f"     ⊙ 内在记忆「{concept}」已内化 + 回链织网 (LLM wiki)", file=sys.stderr)
     return note
 
 

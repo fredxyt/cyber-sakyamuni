@@ -449,6 +449,10 @@ def main():
             koan["no_move_streak"] = 0
             if v.get("insight"):
                 update_wiki_concept(koan, v, attempt, stamp)
+                try:   # 内在记忆即时跟手: 廉价 append 新洞见(不重写/不调LLM), 不必等暂搁才 consolidate
+                    llm_memory.note_insight(koan.get("concept", "空"), v["insight"], stamp)
+                except Exception as e:
+                    print(f"     (note_insight 失败, 不阻断: {str(e)[:40]})", file=sys.stderr)
                 print(f"     ✎ 概念「{koan.get('concept','空')}」增一层理解", file=sys.stderr)
             # 动了就【绝不】停: 还在生产, 让它接着凿。plateau 不在"动"时触发(防参1-2轮还在动就自封到顶)。
         else:
