@@ -243,8 +243,15 @@ def main():
         unengaged = [a for a in apps if not _engaged(a["app"])]
         for a in engaged + unengaged[:20]:
             yingshi.append(_ymake(a["app"], a["n"]))
-    except Exception as e:   # Neo4j 不可达: 应世留空(已初始化为空), 不阻塞其余构建, 下次心跳恢复
-        print(f"[build_site] 应世跳过(Neo4j 不可达): {str(e)[:60]}")
+    except Exception as e:   # Neo4j 不可达: 【沿用上一版应世】, 别清零 —— 一次抖动不该抹掉整个应世(否则站上变"0种苦")
+        print(f"[build_site] 应世: Neo4j 不可达, 沿用上一版 ({str(e)[:50]})")
+        try:
+            prev = json.loads((ROOT / "outputs" / "web" / "site.json").read_text(encoding="utf-8"))
+            yingshi = prev.get("yingshi", [])
+            suffering_total = prev.get("meta", {}).get("suffering_total", 0)
+            suffering_types = prev.get("meta", {}).get("suffering_types", 0)
+        except Exception:
+            pass   # 连上一版都读不到(首次构建) → 才留空
 
     # 覆盖台账: 已参 N / 全量 M 类世界的苦
     cov_f = ROOT / "data" / "state" / "coverage.json"
