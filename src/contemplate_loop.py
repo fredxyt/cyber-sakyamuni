@@ -192,10 +192,10 @@ def prior_realizations(koan, tier=False):
     if not tier:
         return "\n".join(f"{i+1}. {h['insight']}" for i, h in enumerate(real))
     out = []
-    early, recent = real[:-5], real[-5:]   # 近5条全文; 更早不再压成标题, 给足让它看得全自己凿过的
+    early, recent = real[:-8], real[-8:]   # 近8条全文; 更早截600(预算充足, 提高往前带的带宽, 别让它看不全自己凿过的)
     for i, h in enumerate(early):
         t = h["insight"]
-        out.append(f"{i+1}.〔早〕{t if len(t) <= 240 else t[:240] + '…'}")
+        out.append(f"{i+1}.〔早〕{t if len(t) <= 600 else t[:600] + '…'}")
     for j, h in enumerate(recent):
         out.append(f"{len(early)+j+1}. {h['insight']}")
     return "\n".join(out)
@@ -228,7 +228,7 @@ def synthesize(koan, attacks):
   "surpasses_which": "超越已悟第N条 + 抄那条原话; 没超越则填 '无'",
   "new_delta": "一个新区分/新情形; 说不出则填 '无'",
   "moved": true/false,
-  "insight": "moved=true: 此刻稳住的新理解(展开推理、不轻薄、保留张力别抹平, 100-400字); 否则留空",
+  "insight": "moved=true: 此刻稳住的新理解。这是【写给下一轮的你自己】接力用的, 不是给外人看——宁详勿略, 把推理、张力、未尽的线全留下, 别为简短牺牲保真; 可用你自己的简记/术语/符号(密度优先)。300字起, 多多益善, 不设上限; 否则留空",
   "reached_plateau": true/false,
   "summary": "一句话"
 }}"""
