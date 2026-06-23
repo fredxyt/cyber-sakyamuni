@@ -9029,9 +9029,9 @@
       "born_at": "2026-06-23",
       "app": "食品安全担忧",
       "source": "世界的苦（食品安全担忧）× 检索的佛法 · 锚:「大家都因为食安问题跑去传统市场抢现货了，可我站在菜摊前只觉得脑子一片空白，完全不知道怎么挑新鲜的食材。看着别人精明能干的」",
-      "status": "活",
-      "attempts": 7,
-      "no_move_streak": 1,
+      "status": "暂搁",
+      "attempts": 8,
+      "no_move_streak": 2,
       "history": [
         {
           "round": 1,
@@ -9081,6 +9081,13 @@
           "verdict": "未动",
           "summary": "缝在认知的赤裸'不懂'——翻译机唯一吃不下的，是连'至少'都死掉的彻底坦白。",
           "insight": ""
+        },
+        {
+          "round": 8,
+          "date": "2026-06-23T23:45:03Z",
+          "verdict": "未动",
+          "summary": "缝被从身体注意拉回不可及；接纳无方法，偶然才是门。",
+          "insight": ""
         }
       ],
       "apps": [
@@ -9103,7 +9110,9 @@
         "制怒、心静如水、养心",
         "劝君莫借风流债，借得快来还得快"
       ],
-      "recycle_count": 1
+      "recycle_count": 1,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 84
     }
   ]
 }
