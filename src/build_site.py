@@ -243,13 +243,18 @@ def main():
         unengaged = [a for a in apps if not _engaged(a["app"])]
         for a in engaged + unengaged[:20]:
             yingshi.append(_ymake(a["app"], a["n"]))
-    except Exception as e:   # Neo4j 不可达: 【沿用上一版应世】, 别清零 —— 一次抖动不该抹掉整个应世(否则站上变"0种苦")
-        print(f"[build_site] 应世: Neo4j 不可达, 沿用上一版 ({str(e)[:50]})")
+    except Exception as e:   # Neo4j 报异常
+        print(f"[build_site] 应世: Neo4j 不可达 ({str(e)[:50]})")
+    # 统一护栏: 这次应世空了(异常【或】Neo4j返回空) + 上一版非空 → 【沿用上一版】, 绝不让应世从非空退回空。
+    # (一次抖动曾把站上刷成"0种苦"; 应世只在【真有数据】时才更新, 否则保持原样)
+    if not yingshi:
         try:
             prev = json.loads((ROOT / "outputs" / "web" / "site.json").read_text(encoding="utf-8"))
-            yingshi = prev.get("yingshi", [])
-            suffering_total = prev.get("meta", {}).get("suffering_total", 0)
-            suffering_types = prev.get("meta", {}).get("suffering_types", 0)
+            if prev.get("yingshi"):
+                yingshi = prev["yingshi"]
+                suffering_total = prev.get("meta", {}).get("suffering_total", suffering_total)
+                suffering_types = prev.get("meta", {}).get("suffering_types", suffering_types)
+                print(f"[build_site] 应世本次空, 沿用上一版 {len(yingshi)} 类")
         except Exception:
             pass   # 连上一版都读不到(首次构建) → 才留空
 
