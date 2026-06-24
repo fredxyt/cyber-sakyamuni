@@ -66,12 +66,12 @@ THROTTLE_USD = 10.0  # 余额低于此(USD, ≈1天满速预算)开始 decay 放
 
 
 def _pace_min(usd):
-    """decay: 余额→最小参间隔(分钟)。≥阈值=0(满速=随cron每15分); 越少越慢, 封顶1440(1天1参)。"""
+    """decay: 余额→最小参间隔(分钟)。≥阈值=0(满速=随cron每30分); 越少越慢, 封顶1440(1天1参)。"""
     if usd is None or usd >= THROTTLE_USD:
         return 0
     if usd <= 0:
         return None
-    return min(int(15 * (THROTTLE_USD / usd) ** 2), 1440)   # 基准15分=满速cadence, 衰减从此起
+    return min(int(30 * (THROTTLE_USD / usd) ** 2), 1440)   # 基准30分=满速cadence, 衰减从此起
 
 
 def _since_last_min():
