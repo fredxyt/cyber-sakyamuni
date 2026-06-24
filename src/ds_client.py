@@ -59,15 +59,19 @@ def ds(system, user, temperature=0.85, max_tokens=64000, retries=3):
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 temperature=t, max_tokens=max_tokens,
             )
-            return r.choices[0].message.content.strip()
+            content = (r.choices[0].message.content or "").strip()
+            if content:
+                return content
+            last = RuntimeError("DeepSeek 返回空 content")   # 成功但空(推理模型偶发) = 失败, 重试; 别让空值流进管线写出废札记
+            print(f"     (DeepSeek 第{attempt}次返回空 content, 退避重试)", file=sys.stderr)
         except Exception as e:
             if _is_exhausted(e):   # 缘尽: 重试无用, 立即抛, 上层优雅止
                 raise DharmaExhausted(str(e)[:80])
             last = e
             print(f"     (DeepSeek 第{attempt}次失败: {str(e)[:60]}, 退避重试)", file=sys.stderr)
-            if attempt < retries:
-                time.sleep(2 ** attempt)
-    raise last
+        if attempt < retries:
+            time.sleep(2 ** attempt)
+    raise last   # 重试尽仍空/失败 → 抛; 调用方(write_daily/write_note/converge)各自守空, 不挂废内容
 
 
 def now_iso() -> str:

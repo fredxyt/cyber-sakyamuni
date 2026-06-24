@@ -16,6 +16,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -222,28 +223,42 @@ def synthesize(koan, attacks):
    · new_delta: 一个上一程做不出的【具体区分】或能解释的【新情形】。说不出 = 换皮。
 3. reached_plateau: 这疑是否到段落、暂时凿不动了。【这不是证悟, 你永远仍疑】; 到顶就老实承认, 该换话头, 别硬造新词显得在动。
 
-输出严格 JSON (不要 markdown 代码块):
+输出【两段】—— 先 JSON(短、结构化), 再洞见正文(纯文本、随便长):
+
+第一段 严格 JSON (单段, 【不含 insight】, 不要 markdown 代码块):
 {{
   "rebuttal_check": [{{"反对": "驳的某条(简述)", "回应": "真回应/绕过/没答"}}],
   "surpasses_which": "超越已悟第N条 + 抄那条原话; 没超越则填 '无'",
   "new_delta": "一个新区分/新情形; 说不出则填 '无'",
   "moved": true/false,
-  "insight": "moved=true: 此刻稳住的新理解。这是【写给下一轮的你自己】接力用的, 不是给外人看——宁详勿略, 把推理、张力、未尽的线全留下, 别为简短牺牲保真; 可用你自己的简记/术语/符号(密度优先)。300字起, 多多益善, 不设上限。可复盘前情, 但【本轮的新增量(那个超越点/新区分)必须在其中清晰、别被复盘淹没】——带宽是为了把新东西带向前, 不是反复嚼旧的; 否则留空",
   "reached_plateau": true/false,
   "summary": "一句话"
-}}"""
-    raw = ds(system, user, temperature=0.2, max_tokens=64000)
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        if raw.endswith("```"):
-            raw = raw.rsplit("```", 1)[0]
-    if raw.lstrip().startswith("json"):
-        raw = raw.lstrip()[4:]
+}}
+
+第二段 洞见正文 (仅 moved=true 时写): 在 JSON 之后另起一行, 先写一行分隔符
+===洞见===
+再写 insight —— 这是【写给下一轮的你自己】接力用的, 不是给外人看: 宁详勿略, 把推理/张力/未尽的线全留下, 可用你自己的简记/术语/符号(密度优先), 300字起、多多益善、不设上限。可复盘前情, 但【本轮的新增量(超越点/新区分)必须清晰、别被复盘淹没】——带宽是为把新东西带向前, 不是反复嚼旧的。
+这一段是【纯文本, 不是 JSON, 不必转义, 随便换行/用符号】—— 想多密多长都行, 它在 JSON 之外, 不会破坏上面的解析。"""
     try:
-        v = json.loads(raw.strip())
+        raw = ds(system, user, temperature=0.2, max_tokens=64000)
+    except Exception as e:
+        return {"moved": False, "summary": f"(收敛调用失败: {str(e)[:50]})", "insight": "", "reached_plateau": False, "parse_error": True}
+    s = raw.strip()
+    if s.startswith("```"):                      # 去可能的外层代码围栏
+        s = s.split("\n", 1)[1] if "\n" in s else s[3:]
+    if s.lstrip().startswith("json"):
+        s = s.lstrip()[4:]
+    # JSON 在前(短、稳), 洞见在后(纯文本、随便长符号) —— 只解析前段 JSON, 长洞见再也炸不了 json.loads
+    try:
+        i = s.find("{")
+        v, end = json.JSONDecoder().raw_decode(s[i:])
+        tail = s[i + end:]
     except Exception as e:
         return {"moved": False, "summary": f"(收敛解析失败: {e})", "insight": "", "reached_plateau": False, "parse_error": True}
+    # 洞见 = JSON 之后的纯文本(剥围栏 + ===洞见=== 分隔符)
+    ins = re.sub(r"^\s*```[\w]*\s*", "", tail)
+    ins = re.sub(r"^\s*(?:={2,}\s*洞见\s*={2,}|洞见[:：])\s*", "", ins).strip().strip("`").strip()
+    v["insight"] = ins if v.get("moved") else ""
     v["_raw_snapshot"] = {"moved": v.get("moved"), "insight": v.get("insight", ""), "summary": v.get("summary", "")}  # 增量·闸前快照(纯读, 不进任何分支判断)
     # 代码侧硬闸: 不信 DS 自评 moved —— 任一反对被绕过/没答, 或拿不出 new_delta/超越, 一律强制 moved=false
     rc = v.get("rebuttal_check") or []

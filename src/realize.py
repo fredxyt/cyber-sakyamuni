@@ -133,10 +133,17 @@ def write_note(koan):
 
 第一人称，克制，有温度，像真在写给一个人。300-600 字。
 第一行是标题(一句话, 不带#号), 然后空一行, 正文。"""
-    body = ds(system, user, temperature=0.7)
+    try:
+        body = ds(system, user, temperature=0.7)
+    except Exception as e:
+        print(f"     (札记生成失败: {str(e)[:50]}, 跳过不写 —— 暂搁/内化已成, 只是这轮没札记)", file=sys.stderr)
+        return
     lines = body.strip().split("\n", 1)
     title = lines[0].strip().lstrip("#").strip()
     content = lines[1].strip() if len(lines) > 1 else ""
+    if not title or len(content) < 40:   # 守空: 别挂废札记
+        print(f"     (札记为空/过短, 跳过不写)", file=sys.stderr)
+        return
     stamp = now_stamp()
     q = (koan.get("question", "") or "").replace("\n", " ").strip()   # 当时参的那一句疑, 快照进note(隐藏注释), 供页面只显示对应这条
     md = f"# {title}\n\n*参「{concept}」之后 · {now_iso()}*\n<!--Q:{q}-->\n\n{content}\n"
