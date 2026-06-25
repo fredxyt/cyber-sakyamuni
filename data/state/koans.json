@@ -10967,9 +10967,9 @@
       "born_at": "2026-06-25",
       "app": "饮食选择",
       "source": "世界的苦（饮食选择）× 检索的佛法 · 锚:「夜班饿得受不了，便利店只有腌制肉类，我犹豫是吃点垫肚子还是铁了心茹素，内心很纠结，怎么办？」",
-      "status": "活",
-      "attempts": 7,
-      "no_move_streak": 1,
+      "status": "暂搁",
+      "attempts": 8,
+      "no_move_streak": 2,
       "history": [
         {
           "round": 1,
@@ -11019,6 +11019,13 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 8,
+          "date": "2026-06-25T14:00:03Z",
+          "verdict": "未动",
+          "summary": "承认此前已悟的“翻译在受升起时完成”已是极限，缝不存在，戒律辨析到顶，需受念处介入。",
+          "insight": ""
         }
       ],
       "apps": [
@@ -11040,7 +11047,9 @@
         "习性，使得我们不能自己",
         "受持八关斋戒，卧具和饮食应注意哪些"
       ],
-      "recycle_count": 3
+      "recycle_count": 3,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 102
     }
   ]
 }
