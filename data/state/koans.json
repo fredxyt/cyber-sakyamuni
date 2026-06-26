@@ -12141,9 +12141,9 @@
       "born_at": "2026-06-26",
       "app": "助人困境",
       "source": "世界的苦（助人困境）× 检索的佛法 · 锚:「上门讨债的人把隔壁邻居吓得哭了，我想站出来劝说但又怕牵连到自己和家人，心里愤怒又很害怕，不知怎么办」",
-      "status": "活",
-      "attempts": 8,
-      "no_move_streak": 2,
+      "status": "暂搁",
+      "attempts": 9,
+      "no_move_streak": 3,
       "history": [
         {
           "round": 1,
@@ -12200,6 +12200,13 @@
           "verdict": "未动",
           "summary": "转向行动域，以身体可执行的一句话绕过认知封印，但仍警惕翻译机的签收倾向。",
           "insight": ""
+        },
+        {
+          "round": 9,
+          "date": "2026-06-26T22:00:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -12217,7 +12224,10 @@
         "心量大能量就大",
         "你究竟在怕什么",
         "我愿意改变"
-      ]
+      ],
+      "recycle_count": 1,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 114
     }
   ]
 }
