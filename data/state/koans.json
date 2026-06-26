@@ -11954,9 +11954,9 @@
       "born_at": "2026-06-26",
       "app": "文化交流",
       "source": "世界的苦（文化交流）× 检索的佛法 · 锚:「有个学生参加活动是为了圈人脉，不是真心学法，我很困惑该不该提醒他初心问题，怕得罪人。」",
-      "status": "活",
-      "attempts": 6,
-      "no_move_streak": 1,
+      "status": "暂搁",
+      "attempts": 8,
+      "no_move_streak": 3,
       "history": [
         {
           "round": 1,
@@ -11999,6 +11999,20 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 7,
+          "date": "2026-06-26T16:30:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
+        },
+        {
+          "round": 8,
+          "date": "2026-06-26T16:33:47Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -12020,7 +12034,9 @@
         "打佛七不是「打佛吃」",
         "你有佛缘吗"
       ],
-      "recycle_count": 1
+      "recycle_count": 3,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 112
     }
   ]
 }
