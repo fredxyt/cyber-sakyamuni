@@ -8,7 +8,7 @@ INDX 前端套上它的皮(配色/排版)来渲染。每次修行后重跑。
 输出: outputs/web/site.json
 """
 import json
-from io_util import write_json_atomic
+from io_util import safe_display_title, title_looks_bad, write_json_atomic
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,6 +59,21 @@ def excerpt(md, n=80):
     return t[:n]
 
 
+def short_title_fallback(raw_title, fallback="此处暂搁", max_chars=14):
+    t = re.sub(r"^今日札记[:：·]\s*", "", raw_title or "").strip().lstrip("#").strip()
+    t = re.split(r"[。！？!?；;]", t, maxsplit=1)[0].strip()
+    parts = [p.strip() for p in t.split("，") if p.strip()]
+    if parts:
+        if len(parts[0]) >= 6:
+            t = parts[0]
+        elif len(parts) > 1:
+            t = "，".join(parts[:2])
+    t = re.sub(r"[“”\"']", "", t)
+    if len(t) >= 4:
+        return t[:max_chars].rstrip("，、的是而不")
+    return fallback
+
+
 def parse_wrong_turns(md):
     """把'我走过的弯路'里的 **第N轮…** 段落拆成时间序列。"""
     items = []
@@ -102,7 +117,13 @@ def main():
         date = (dm.group(1) if dm else date_m.group(1)) if (dm or date_m) else ""
         qm = re.search(r"<!--Q:(.*?)-->", md, re.DOTALL)   # 当时那一句源疑(快照)
         md = re.sub(r"<!--Q:.*?-->\s*", "", md, flags=re.DOTALL)  # 从渲染剥掉隐藏标记
-        title = re.sub(r"^今日札记[:：·]\s*", "", first_heading(md))  # 去冗余前缀
+        raw_title = re.sub(r"^今日札记[:：·]\s*", "", first_heading(md))  # 去冗余前缀
+        fallback_title = "今日仍在门外" if is_daily else short_title_fallback(raw_title)
+        title = safe_display_title(raw_title, fallback_title, max_title_chars=24, bad_punctuation=False)
+        if title_looks_bad(raw_title, max_chars=24, bad_punctuation=False):
+            # 历史坏产物可能把正文第一段写成 H1。降级进正文, 别让长句污染卡片/OG/标题。
+            md = re.sub(r"^#\s+(.+)$", lambda m: f"# {title}\n\n{m.group(1).strip()}",
+                        md, count=1, flags=re.MULTILINE)
         _clean = re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE)
         _clean = re.sub(r"^\s*\*.*?\*\s*$", "", _clean, flags=re.MULTILINE)  # 去 *今日·…* / *参「X」之后* 副标题
         exc = excerpt(_clean, 100)

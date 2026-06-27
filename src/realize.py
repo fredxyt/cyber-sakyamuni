@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds_client import ds, now_iso, now_stamp
-from io_util import write_json_atomic
+from io_util import split_generated_note, write_json_atomic
 
 ROOT = Path(__file__).resolve().parent.parent
 WIKI = ROOT / "data" / "memory" / "wiki"
@@ -132,15 +132,19 @@ def write_note(koan):
 · 结尾：此刻落在哪、还有什么没放下。可以承认没想透——诚实比圆满动人。
 
 第一人称，克制，有温度，像真在写给一个人。300-600 字。
-第一行是标题(一句话, 不带#号), 然后空一行, 正文。"""
+
+【标题铁律】
+第一行只能是标题, 不带#号。
+标题 8-14 个字, 最长不超过 18 个字。
+标题不能是完整句子, 不能含句号、问号、感叹号、分号。
+第二行必须空行, 第三行开始正文。"""
     try:
         body = ds(system, user, temperature=0.7)
     except Exception as e:
         print(f"     (札记生成失败: {str(e)[:50]}, 跳过不写 —— 暂搁/内化已成, 只是这轮没札记)", file=sys.stderr)
         return
-    lines = body.strip().split("\n", 1)
-    title = lines[0].strip().lstrip("#").strip()
-    content = lines[1].strip() if len(lines) > 1 else ""
+    fallback_title = f"暂搁在{concept}" if len(concept) <= 8 else "此处暂搁"
+    title, content = split_generated_note(body, fallback_title, max_title_chars=18)
     if not title or len(content) < 40:   # 守空: 别挂废札记
         print(f"     (札记为空/过短, 跳过不写)", file=sys.stderr)
         return

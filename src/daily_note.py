@@ -17,6 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ds_client import ds, now_iso
+from io_util import split_generated_note
 
 ROOT = Path(__file__).resolve().parent.parent
 KOANS = ROOT / "data" / "state" / "koans.json"
@@ -123,15 +124,20 @@ def write_daily():
 2. 主体：挑今天【最触动的一两处】，用人话+体温把它写透——把那点心动说给一个正难受的人听，让他觉得"有人也这样过、也没装懂"。今天若几条线索能织起来，就从容织；它是一天的份量，值得展开。
 3. 收在一点【可以带走的东西】上——一句安慰、一个诚实的不知道、一点不转身的力气。
 长短随今天的份量：真有内容就写透（600-1000字很正常），今天确实只是徘徊就照实短写，别注水也别硬压。
-第一人称, 克制, 有温度。第一行标题(不带#号), 空一行, 正文。"""
+第一人称, 克制, 有温度。
+
+【标题铁律】
+第一行只能是标题, 不带#号。
+标题 8-14 个字, 最长不超过 18 个字。
+标题不能是完整句子, 不能含句号、问号、感叹号、分号。
+第二行必须空行, 第三行开始正文。"""
     try:
         text = ds(system, user, temperature=0.7)
     except Exception as e:
         print(f"[今日] {today} 生成失败({str(e)[:50]}), 跳过 —— 不挂废札记。", file=sys.stderr)
         return None
-    lines = text.strip().split("\n", 1)
-    title = lines[0].strip().lstrip("#").strip()
-    content = lines[1].strip() if len(lines) > 1 else ""
+    fallback_title = f"今日仍疑于{deepest}" if deepest and len(deepest) <= 8 else "今日仍在门外"
+    title, content = split_generated_note(text, fallback_title, max_title_chars=18)
     content = re.sub(r"^[=\-—*\s]+", "", content).strip()  # 去开头夹带的分隔符/空行
     # 守空: 标题或正文为空/过短 → 不写(否则前端只剩副标题, 像崩了)。宁可这天没今日, 不挂废札记。
     if not title or len(content) < 40:
