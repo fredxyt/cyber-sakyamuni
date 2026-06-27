@@ -12531,9 +12531,9 @@
       "born_at": "2026-06-27",
       "app": "商业道德",
       "source": "世界的苦（商业道德）× 检索的佛法 · 锚:「我是销售，虚报业绩能拿奖金，但每晚睡不着，内心很内疚，这样下去怎么面对自己？」",
-      "status": "活",
-      "attempts": 6,
-      "no_move_streak": 3,
+      "status": "暂搁",
+      "attempts": 7,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -12576,6 +12576,13 @@
           "verdict": "未动",
           "summary": "解提出事中刀区分，但未回应驳的三条反对，未能站住，这一程未真正推进。",
           "insight": ""
+        },
+        {
+          "round": 7,
+          "date": "2026-06-27T08:00:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -12597,7 +12604,9 @@
         "慎独知于衾影",
         "不能为了钱违背自己的良心"
       ],
-      "recycle_count": 1
+      "recycle_count": 2,
+      "pause_reason": "recycled",
+      "consolidations_at_pause": 118
     }
   ]
 }
