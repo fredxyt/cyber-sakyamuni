@@ -8,6 +8,7 @@ INDX 前端套上它的皮(配色/排版)来渲染。每次修行后重跑。
 输出: outputs/web/site.json
 """
 import json
+import subprocess
 from io_util import safe_display_title, title_looks_bad, write_json_atomic
 import re
 from datetime import datetime, timezone
@@ -20,6 +21,28 @@ KOANS = ROOT / "data" / "state" / "koans.json"
 BLOG = ROOT / "outputs" / "blog"
 STATE = json.loads((ROOT / "data" / "state" / "cultivation.json").read_text(encoding="utf-8"))
 OUT = ROOT / "outputs" / "web" / "site.json"
+
+
+def _blog_git_times():
+    """每篇 blog 文件的 git 首次/末次提交时间 (ISO8601, +00:00)。
+    首次=发布(datePublished), 末次=修改(dateModified)。一次 git log 扫全量。
+    fail-open: 任何异常→空 dict, 调用方回退当前时刻。"""
+    pub, mod = {}, {}
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "log", "--format=@@%cI", "--name-only", "--", "outputs/blog"],
+            capture_output=True, text=True, timeout=30).stdout
+        cur = None
+        for line in out.splitlines():
+            if line.startswith("@@"):
+                cur = line[2:]
+            elif line.endswith(".md") and cur:
+                stem = Path(line).stem
+                mod.setdefault(stem, cur)   # 新→旧: 首现=最近一次(修改)
+                pub[stem] = cur             # 持续覆盖: 末现=最早一次(发布)
+    except Exception:
+        return {}, {}
+    return pub, mod
 
 
 def parse_frontmatter(text):
@@ -106,6 +129,7 @@ def main():
     chronicle = []
     moments_by_concept = {}
     moments_by_date = {}      # B: 当天参详, 挂到当天「今日」下
+    _gpub, _gmod = _blog_git_times()   # 发布/修改时刻(ISO8601带时区) for Google News NewsArticle
     for f in BLOG.glob("*.md"):
         md = f.read_text(encoding="utf-8")
         m = re.search(r"cycle(\d+)", f.stem)
@@ -127,7 +151,15 @@ def main():
         _clean = re.sub(r"^#.*$", "", md, count=1, flags=re.MULTILINE)
         _clean = re.sub(r"^\s*\*.*?\*\s*$", "", _clean, flags=re.MULTILINE)  # 去 *今日·…* / *参「X」之后* 副标题
         exc = excerpt(_clean, 100)
+        if tm:   # 片刻: 文件名自带精确 ISO 时刻, 最准且永远可用(绕开未提交)
+            _iso = f"{tm.group(1)}T{tm.group(2)}:{tm.group(3)}:{tm.group(4)}+00:00"
+            published, modified = _iso, _iso
+        else:    # daily / 诞生: git commit 时间; 本轮刚写还没提交→回退当前时刻
+            _now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            published = _gpub.get(f.stem) or _now
+            modified = _gmod.get(f.stem) or published
         entry = {"id": f.stem, "date": date, "title": title, "markdown": md, "excerpt": exc,
+                 "published": published, "modified": modified,
                  "question": qm.group(1).strip() if qm else ""}   # 这篇当时参的源疑(只这一条)
         if is_daily:
             chronicle.append({**entry, "kind": "daily", "when": date, "cycle": None,
@@ -154,10 +186,13 @@ def main():
     # 入夜写了真「今日」后, 同日期的真 daily 会自然顶替(下次构建该日已在 daily_dates, 不再生 stub)
     for date, ms in moments_by_date.items():
         if date not in daily_dates:
+            _ps = [x["published"] for x in ms if x.get("published")]
             chronicle.append({
                 "id": f"day-{date}", "date": date, "kind": "daystub", "cycle": None,
                 "title": "今天还在参 · 今日札记入夜成文", "excerpt": "", "when": date,
                 "sort": date + "~daystub", "markdown": "",
+                "published": min(_ps) if _ps else f"{date}T00:00:00+00:00",
+                "modified": max(_ps) if _ps else f"{date}T00:00:00+00:00",
                 "day_moments": sorted(ms, key=lambda x: x["id"], reverse=True),
             })
     chronicle.sort(key=lambda c: c["sort"], reverse=True)   # 重排, stub 按日期落位(今天的在最前)
@@ -250,6 +285,7 @@ def main():
             stance = "还没参到这一类。世界的苦太多(我一类类慢慢参), 还没轮到它 —— 但它在我心里排着, 总会参到。"
         return {"category": cat, "count": n, "cries": [], "stance": stance,
                 "concepts": [ec] if ec else [], "engaged": bool(ec),
+                "at": e.get("at", ""),   # 该类被参的时刻 (NewsArticle datePublished/modified)
                 "koan_id": koan["id"] if koan else "", "question": question, "seen": seen}
 
     yingshi, suffering_total, suffering_types = [], 0, 0
