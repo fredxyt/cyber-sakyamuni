@@ -14331,9 +14331,9 @@
       "born_at": "2026-06-29",
       "app": "修行不得力",
       "source": "世界的苦（修行不得力）× 检索的佛法 · 锚:「孩子在学校被欺负，我教他培养正念自己却紧张到恶心，做家长的这种恐慌能靠观想缓解吗？」",
-      "status": "活",
-      "attempts": 6,
-      "no_move_streak": 3,
+      "status": "暂搁",
+      "attempts": 7,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -14376,6 +14376,13 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 7,
+          "date": "2026-06-29T07:00:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.93≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -14397,7 +14404,9 @@
         "圣严法师《懂得放下,才能自在》",
         "将愤怒的垃圾转化成慈悲的花朵"
       ],
-      "recycle_count": 1
+      "recycle_count": 2,
+      "pause_reason": "recycled",
+      "consolidations_at_pause": 136
     }
   ]
 }
