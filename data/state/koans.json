@@ -14828,9 +14828,9 @@
       "born_at": "2026-06-29",
       "app": "人生选择",
       "source": "世界的苦（人生选择）× 检索的佛法 · 锚:「照顾孩子和工作两头忙，我经常觉得自己做得不够好，内疚得睡不着，有没有随缘接受的实际练习可以缓解？」",
-      "status": "活",
-      "attempts": 5,
-      "no_move_streak": 2,
+      "status": "暂搁",
+      "attempts": 7,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -14866,6 +14866,20 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 6,
+          "date": "2026-06-29T19:30:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
+        },
+        {
+          "round": 7,
+          "date": "2026-06-29T19:33:29Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.93≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -14885,7 +14899,9 @@
         "常用佛语的背后义理",
         "还是做胆小鬼最易"
       ],
-      "recycle_count": 2
+      "recycle_count": 4,
+      "pause_reason": "recycled",
+      "consolidations_at_pause": 141
     }
   ]
 }
