@@ -17134,9 +17134,9 @@
       "born_at": "2026-07-02",
       "app": "道德沦丧",
       "source": "世界的苦（道德沦丧）× 检索的佛法 · 锚:「前几天我把同事的设计稿偷偷改了让自己抢了功劳，现在良心不安，该怎么面对内疚？」",
-      "status": "活",
-      "attempts": 6,
-      "no_move_streak": 2,
+      "status": "暂搁",
+      "attempts": 8,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -17179,6 +17179,20 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.92≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 7,
+          "date": "2026-07-02T10:30:02Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.90≥0.9)",
+          "insight": ""
+        },
+        {
+          "round": 8,
+          "date": "2026-07-02T10:34:02Z",
+          "verdict": "未动",
+          "summary": "这一程没剥出新层——「僵不需要放」是从愧哽页平移过来的，器官框架仍然在代替伦理事实。到顶，换话头。",
+          "insight": ""
         }
       ],
       "apps": [
@@ -17201,7 +17215,9 @@
         "星云大师《心无挂碍》",
         "如何才能活得坦荡"
       ],
-      "recycle_count": 1
+      "recycle_count": 2,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 164
     }
   ]
 }
