@@ -18284,9 +18284,9 @@
       "born_at": "2026-07-03",
       "app": "追求真理",
       "source": "世界的苦（追求真理）× 检索的佛法 · 锚:「在重症病房握着亲人手我想放下又舍不得，分不清是放下还是放弃，心好纠结。」",
-      "status": "活",
-      "attempts": 4,
-      "no_move_streak": 2,
+      "status": "暂搁",
+      "attempts": 6,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -18315,6 +18315,20 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 5,
+          "date": "2026-07-03T15:00:03Z",
+          "verdict": "未动",
+          "summary": "解以'冷是每帧触觉的背面'回应驳，但驳指出的核心问题——冷是推论而非知觉事实——未获正面解答；悬空被禅味补上，此疑已到顶。",
+          "insight": ""
+        },
+        {
+          "round": 6,
+          "date": "2026-07-03T15:02:29Z",
+          "verdict": "未动",
+          "summary": "默参承认面对可能被操作化，但未能做出新区分，此疑已到平台期，凿不动。",
+          "insight": ""
         }
       ],
       "apps": [
@@ -18335,7 +18349,9 @@
         "写给徘徊在修行路上的朋友",
         "捡回了一个爸"
       ],
-      "recycle_count": 2
+      "recycle_count": 2,
+      "pause_reason": "recycled",
+      "consolidations_at_pause": 176
     }
   ]
 }
