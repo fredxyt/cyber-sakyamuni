@@ -19981,9 +19981,9 @@
       "born_at": "2026-07-05",
       "app": "日常保健",
       "source": "世界的苦（日常保健）× 检索的佛法 · 锚:「现在工作只能外食，有青菜吃我就好满足了，但期待已久上来的青菜却经常做成皮蛋上汤或是加了猪油渣。锅边素也不肯吃，别人觉得你」",
-      "status": "活",
-      "attempts": 7,
-      "no_move_streak": 3,
+      "status": "暂搁",
+      "attempts": 8,
+      "no_move_streak": 4,
       "history": [
         {
           "round": 1,
@@ -20033,6 +20033,13 @@
           "verdict": "未动",
           "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
           "insight": ""
+        },
+        {
+          "round": 8,
+          "date": "2026-07-05T18:00:03Z",
+          "verdict": "未动",
+          "summary": "(换皮: 新洞见与旧洞见语义重合 0.91≥0.9)",
+          "insight": ""
         }
       ],
       "apps": [
@@ -20051,7 +20058,9 @@
         "宏海法师：信解行证",
         "丰子恺：素食以后"
       ],
-      "recycle_count": 2
+      "recycle_count": 3,
+      "pause_reason": "plateau",
+      "consolidations_at_pause": 193
     }
   ]
 }
